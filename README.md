@@ -25,12 +25,12 @@ The compact-statistics experience of DeepSeek Harness (DSH) for the official ZCo
 
 | See | Understand |
 | --- | --- |
-| **6 turns · 58 steps · 204 tok/s** | Completed conversation turns, main requests and average decode speed |
+| **6 turns · 58 steps · 204 tok/s** | Completed conversation turns, main requests and recent-5 weighted decode speed |
 | **5.2M tok · 83% cache hits** | Cumulative token usage and the input's cache-hit ratio |
 | **16% context** | Native context usage for the active conversation |
 | **Click any metric** | Pop open the session / token / context cards |
 
-The row is **24px high**: it adapts to narrow panes, follows light/dark mode, and keeps each split pane's statistics separate. Speed updates after requests complete, not token by token.
+The row is **24px high**: it adapts to narrow panes, follows light/dark mode, and keeps each split pane's statistics separate. Speed is weighted over the last five completed requests and updates after completion, not token by token.
 
 <details>
 <summary><b>🔍 The three detail cards</b></summary>

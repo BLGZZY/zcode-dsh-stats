@@ -50,6 +50,26 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(stats['tps'], 19)  # 190 / 10 seconds, not (100 + 10) / 2.
         self.assertEqual(stats['decodeMs'], 10000)
         self.assertEqual(stats['speedSamples'], 2)
+        self.assertEqual(stats['speedWindow'], 2)
+
+    def test_decode_speed_covers_only_the_recent_window(self):
+        old = request(output_tokens=1000, started_at=0, first_token_at=1000, completed_at=11000)
+        recent = [request(turn_id=f'turn-{i}', started_at=20000 * i, first_token_at=20000 * i + 1000,
+                          completed_at=20000 * i + 11000, output_tokens=50) for i in range(1, 6)]
+        stats = collector.summarize([old, *recent])
+        # Window = last five: 250 tok / 50 s = 5 tok/s; the whole-session ratio would be ~24.2.
+        self.assertEqual(stats['tps'], 5)
+        self.assertEqual(stats['speedSamples'], 5)
+        self.assertEqual(stats['speedWindow'], 5)
+        self.assertEqual(stats['decodeMs'], 50000)
+
+    def test_speed_window_reports_partial_coverage_over_long_sessions(self):
+        broken = [request(turn_id=f'broken-{i}', first_token_at=None) for i in range(4)]
+        good = [request(turn_id=f'good-{i}') for i in range(3)]
+        stats = collector.summarize([*broken, *good])
+        self.assertEqual(stats['steps'], 7)
+        self.assertEqual(stats['speedSamples'], 3)
+        self.assertEqual(stats['speedWindow'], 5)
 
     def test_cached_input_is_not_added_twice_and_hit_rate_is_weighted(self):
         stats = collector.summarize([

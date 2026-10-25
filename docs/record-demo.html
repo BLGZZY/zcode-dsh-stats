@@ -35,7 +35,7 @@ function dataPacket(now) {
   const output = 54000 + (n - 54) * 660;
   const toolCalls = n + 16;
   return { at: now, sessions: { demo: {
-    turns, steps: n, tps, speedSamples: n,
+    turns, steps: n, tps, speedSamples: 5, speedWindow: 5,
     decodeMs: Math.round(tps > 0 ? output / tps * 1000 : 0), tokenSamples: n,
     tokens, cacheHit, cacheSamples: n, errors: 0,
     modelMs: 480000 + (n - 54) * 12400, modelSamples: n,

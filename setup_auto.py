@@ -34,7 +34,7 @@ def build(runtime):
         shutil.copy2(ROOT / name, target)
     (plugin / '.zcode-plugin').mkdir(exist_ok=True)
     atomic_json(plugin / '.zcode-plugin/plugin.json', {
-        'name': 'zcode-dsh-stats', 'version': '0.4.1',
+        'name': 'zcode-dsh-stats', 'version': '0.4.2',
         'description': '官方 ZCode 更新后自动恢复输入框底部 DSH 风格统计条。仅检查和恢复本组件，必要时下次正常重启生效。',
         'author': {'name': 'Local'}, 'license': 'MIT',
     })
@@ -47,7 +47,7 @@ def build(runtime):
     }]}})
     atomic_json(market / 'marketplace.json', {
         'name': 'dsh-stats-local', 'owner': {'name': 'Local'},
-        'plugins': [{'name': 'zcode-dsh-stats', 'source': './plugins/zcode-dsh-stats', 'version': '0.4.1'}],
+        'plugins': [{'name': 'zcode-dsh-stats', 'source': './plugins/zcode-dsh-stats', 'version': '0.4.2'}],
     })
     return market, plugin
 

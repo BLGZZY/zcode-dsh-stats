@@ -9,7 +9,7 @@ const ROOT = __dirname;
 let stopped = false, busy = false, timer;
 const bound = new WeakSet();
 const booted = new WeakSet();
-const diag = { version: '0.4.1', loadedAt: new Date().toISOString(), windows: 0, updates: 0 };
+const diag = { version: '0.4.2', loadedAt: new Date().toISOString(), windows: 0, updates: 0 };
 
 function eligible(wc) {
   try {

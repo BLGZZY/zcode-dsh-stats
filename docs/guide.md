@@ -88,7 +88,7 @@ Removal records an opt-out first. The plugin registration may remain, but the ho
 | Model time | Sum of client-recorded completed main-request durations, including preparation, retries and completion handling. Not pure server inference time. |
 | Tool time | Sum of dispatch-to-terminal intervals associated with retained main turns, including queue/approval waits and failed/cancelled calls. Parallel calls overlap; this is not wall-clock waiting time. |
 | Mean TTFT | Arithmetic mean of valid first-token delays; missing timing samples are excluded and marked. |
-| Decode tok/s | Sum of output tokens divided by sum of completion-minus-first-token durations, over paired valid samples. Updated after completion. |
+| Decode tok/s | Sum of output tokens divided by sum of completion-minus-first-token durations over the most recent completed requests (window of 5; shorter sessions use what exists). Tracks current pace rather than the whole-retention average; updated after completion. |
 | Tokens | Cumulative completed main-request tokens, with legacy cached-input storage normalized to avoid double counting. |
 | Cache hit | Input-weighted cache-hit ratio where stored usage provides sufficient evidence. |
 | Context | Native usage/limit from the active pane; no model-window guessing. |

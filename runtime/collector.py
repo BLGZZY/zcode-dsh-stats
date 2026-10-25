@@ -17,6 +17,9 @@ def known(row, field, flag):
     return number(value) and (value > 0 or bool(row[flag]))
 
 
+SPEED_WINDOW = 5  # Row speed tracks the most recent completed requests, not the whole retained session.
+
+
 def input_side(row):
     """Match ZCode's inputSideTokensFromStoredUsage, retaining missing-input coverage."""
     raw_input = row['input_tokens']
@@ -81,7 +84,9 @@ def summarize(rows):
                 ttft_times.append(first - start)
         if output_known and all(number(v) for v in (start, first, end, out)) and start <= first < end:
             paired.append((out, end - first))
-    duration = sum(p[1] for p in paired)
+    # Rows arrive ordered by started_at, so the tail of `paired` is the most recent history.
+    window = paired[-SPEED_WINDOW:]
+    duration = sum(p[1] for p in window)
     cache_input = sum(p[0] for p in cache)
     def total(values):
         return sum(values) if values else (0 if not good else None)
@@ -90,8 +95,11 @@ def summarize(rows):
         'steps': len(good),
         'tokens': sum(totals) if totals else (0 if not good else None),
         'tokenSamples': len(totals),
-        'tps': sum(p[0] for p in paired) * 1000 / duration if duration else None,
-        'speedSamples': len(paired),
+        'tps': sum(p[0] for p in window) * 1000 / duration if duration else None,
+        'speedSamples': len(window),
+        # Coverage target for the windowed speed: the window caps at SPEED_WINDOW but
+        # also cannot exceed the session's completed requests.
+        'speedWindow': min(SPEED_WINDOW, len(good)),
         'decodeMs': duration,
         'cacheHit': sum(p[1] for p in cache) / cache_input if cache_input else None,
         'cacheSamples': len(cache),

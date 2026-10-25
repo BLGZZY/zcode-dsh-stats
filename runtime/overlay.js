@@ -6,7 +6,7 @@
   // Only compact the native 16px dock gutter while our row is actually mounted.
   // A scoped rule preserves React's styles and restores native spacing on cleanup/drafts.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.4.1';
+  dockStyle.dataset.dshStatsLayout = '0.4.2';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
   let packet = { sessions: {}, at: 0 }, dead = false, positionFrame = null;
@@ -69,7 +69,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.4.1';
+    host.dataset.dshStats = '0.4.2';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>
@@ -114,10 +114,11 @@
       }
       let note = '';
       if (state.kind === 'activity') {
+        const speedTotal = d?.speedWindow > 0 ? d.speedWindow : d?.steps;
         line('模型用时', metric(d?.modelMs, d?.modelSamples, d?.steps, duration, '模型'), '客户端记录的已完成主请求总耗时，含首 token 等待及准备、重试、收尾开销，并非纯服务端推理时间。');
         line('工具调用用时', metric(d?.toolMs, d?.toolSamples, d?.toolCalls, duration, '工具'), '与主回合关联的工具调用从调度到终态的耗时之和，含排队、审批等待及失败/取消；并行调用会累加。');
         line('首 token 平均（TTFT）', metric(finite(d?.ttftMs) && d?.ttftSamples > 0 ? d.ttftMs / d.ttftSamples : null, d?.ttftSamples, d?.steps, duration, '首 token'), '有效首 token 等待时间的算术平均。');
-        line('输出速度（TPS）', metric(d?.tps, d?.speedSamples, d?.steps, speed, '速度'), '有效样本的输出 token 总和 ÷ 解码耗时总和。');
+        line('输出速度（TPS）', metric(d?.tps, d?.speedSamples, speedTotal, speed, '速度'), '最近完成请求（窗口最多 5 条）的输出 token 总和 ÷ 解码耗时总和，反映当前节奏而非全程平均。');
       } else if (state.kind === 'usage') {
         const total = metric(d?.tokens, d?.tokenSamples, d?.steps, tok, '总量');
         headline.textContent = total.text;headline.title = total.hint;
@@ -181,9 +182,11 @@
     const valid = d && !d.error && !packet.error && !stale;
     s.data = valid ? d : null;
     s.dataStatus = !packet.at ? 'waiting' : packet.error || d?.error ? 'unavailable' : stale ? 'stale' : d ? 'ready' : 'waiting';
+    // Speed covers only its recent window; without the field (old packets) fall back to step count.
+    const speedTotal = d?.speedWindow > 0 ? d.speedWindow : d?.steps ?? 0;
     const q = sel => s.shadow.querySelector(sel);
     q('.counts').textContent = valid ? `${d.turns} 轮 ${d.steps} 步` : '待同步';
-    q('.speed').textContent = valid ? speed(d.tps) + (d.speedSamples < d.steps && d.tps !== null ? '*' : '') : '— tok/s';
+    q('.speed').textContent = valid ? speed(d.tps) + (d.speedSamples < speedTotal && d.tps !== null ? '*' : '') : '— tok/s';
     q('.total').textContent = valid ? `${compact(d.tokens)} tok${d.tokenSamples < d.steps ? '*' : ''}` : '— tok';
     q('.cache').textContent = valid && d.cacheHit !== null ? `· 缓存命中 ${percent(d.cacheHit)}${d.cacheSamples < d.steps ? '*' : ''}` : '';
     q('.pressure').textContent = s.context ? percent(s.context.used / s.context.max) : '—';
