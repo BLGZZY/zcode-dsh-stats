@@ -4,6 +4,8 @@
 
 [English](README.md) · **简体中文**
 
+**目录：** [功能](#一眼看清什么) · [Quick Start](#quick-start) · [客户端更新](#zcode-更新后怎么办) · [升级与卸载](#升级或卸载本组件) · [隐私](#数据与隐私) · [文档](#文档与贡献) · [许可](#致谢与许可)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
   <img src="docs/assets/showcase-light.png" alt="ZCode 输入框下方的 DSH 统计条：轮数、步数、速度、token、缓存命中率和上下文占用。图中使用演示数据。">
@@ -40,6 +42,22 @@
 </details>
 
 ## Quick Start
+
+### 方式一：交给 Agent 安装（推荐）
+
+把下面这段话复制给能操作你本机终端的 agent：
+
+```text
+请在我的 Mac 上安装 ZCode DSH Stats，并启用官方 ZCode 更新后的自动恢复。
+先读取并遵循安装指南：https://raw.githubusercontent.com/BLGZZY/zcode-dsh-stats/main/INSTALL_FOR_AGENTS.md
+请直接完成环境检查、获取代码、安装和结果验证；必要时可通过已有 Homebrew 安装 Python。
+不要构建 ZCode Dev，不要强退正在运行的 ZCode。若被系统权限或兼容性检查阻止，请说明实际原因和我需要做的一步操作。
+最后告诉我是否安装成功、自动恢复是否启用，以及是否还需要重启 ZCode。
+```
+
+支持具备本机终端权限的 agent；普通网页聊天或远程沙箱无法直接安装到你的 Mac。[查看 Agent 安装指南](INSTALL_FOR_AGENTS.md)。
+
+### 方式二：手动安装
 
 需要 **macOS**、可通过 `python3` 调用的 **Python 3.11+**、Git，以及安装在 `/Applications/ZCode.app` 的官方 ZCode。不需要安装 pip 依赖。目前针对 **Apple Silicon 上的 ZCode 3.16.3** 做过兼容检查；Windows、Linux 和其他客户端版本尚未验证。
 

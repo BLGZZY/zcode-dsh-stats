@@ -4,6 +4,8 @@ A compact token usage bar for official ZCode Desktop, with automatic restoration
 
 **English** · [简体中文](README.zh-CN.md)
 
+**Contents:** [Features](#at-a-glance) · [Quick Start](#quick-start) · [Client updates](#after-zcode-updates) · [Update/remove](#update-or-remove-this-extension) · [Privacy](#data-and-privacy) · [Docs](#documentation-and-contributing) · [License](#credits-and-license)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
   <img src="docs/assets/showcase-light.png" alt="DSH Stats beneath the ZCode input card: turns, requests, decode speed, tokens, cache hits and context usage. Demo data.">
@@ -40,6 +42,22 @@ The row is **24px high**, adapts to narrow panes, follows light/dark mode and ke
 </details>
 
 ## Quick Start
+
+### Option 1: Ask your agent to install it
+
+Copy this into an agent that can operate the terminal on your Mac:
+
+```text
+Install ZCode DSH Stats on my Mac and enable automatic restoration after official ZCode updates.
+First read and follow https://raw.githubusercontent.com/BLGZZY/zcode-dsh-stats/main/INSTALL_FOR_AGENTS.md
+Complete the environment checks, source download, installation and verification. You may install Python through an existing Homebrew if needed.
+Do not build ZCode Dev or force-quit a running ZCode. If system permissions or compatibility checks block installation, explain the actual blocker and the one step I need to take.
+Report whether installation and automatic recovery succeeded, and whether I still need to restart ZCode.
+```
+
+Requires an agent with local terminal access. A web-only chat or remote sandbox cannot install into your Mac. [Read the agent installation guide](INSTALL_FOR_AGENTS.md).
+
+### Option 2: Install manually
 
 Requires **macOS**, **Python 3.11+** as `python3`, Git, and official ZCode at `/Applications/ZCode.app`. No pip dependencies. The current target was checked against **ZCode 3.16.3 on Apple Silicon**; Windows/Linux and other client versions are not verified.
 
