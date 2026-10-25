@@ -5,7 +5,6 @@ Existing payload bytes are preserved verbatim; only the main-entry record is rep
 """
 import argparse
 import copy
-import fcntl
 import hashlib
 import json
 import os
@@ -17,6 +16,7 @@ import tempfile
 from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
+from host_platform import file_lock, default_asar
 
 ROOT = Path(__file__).resolve().parent
 ENTRY = 'out/main/index.js'
@@ -94,27 +94,15 @@ def validate(src, dst, entry):
 @contextmanager
 def management_lock(runtime):
     """Serialize user enable, disable and removal decisions."""
-    with (runtime / '.setup.lock').open('a') as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise RuntimeError('Another enable/disable/remove operation is running; try again later') from exc
+    with file_lock(runtime / '.setup.lock', 'Another enable/disable/remove operation is running; try again later'):
         yield
 
 
 @contextmanager
 def install_lock(runtime):
     """Serialize manual, prepare, remove and automatic operations for this runtime."""
-    fd = os.open(runtime / 'install.lock', os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(fd, 'a+') as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise RuntimeError('Another install/remove/prepare operation is running; try again later') from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    with file_lock(runtime / 'install.lock', 'Another install/remove/prepare operation is running; try again later'):
+        yield
 
 
 def atomic_write(path, contents):
@@ -139,7 +127,7 @@ def sync_runtime(runtime):
             atomic_write(dst, contents)
             changed.append(name)
     config_path = runtime / 'config.json'
-    config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
     if not isinstance(config, dict):
         raise ValueError('Runtime config must be a JSON object; refusing to overwrite it')
     original = dict(config)
@@ -248,16 +236,18 @@ def install_locked(asar, runtime, remove, prepare, automatic):
               'asar': str(asar), 'prepared': str(destination) if prepare else None,
               'backup': str(backup), 'beforeSha256': baseline, 'afterSha256': sha(destination),
               'runtime': str(runtime)}
-    (runtime / (stamp + '-receipt.json')).write_text(json.dumps(record, indent=2) + '\n')
+    (runtime / (stamp + '-receipt.json')).write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
     return record
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['install', 'remove', 'check', 'prepare'])
-    parser.add_argument('--asar', type=Path, default=Path('/Applications/ZCode.app/Contents/Resources/app.asar'))
+    parser.add_argument('--asar', type=Path)
     parser.add_argument('--runtime', type=Path, default=Path.home() / '.zcode-dsh-stats')
     args = parser.parse_args(argv)
+    if args.asar is None:
+        args.asar = default_asar()
     if args.action == 'check':
         print(json.dumps({'installed': bool(MARKER.search(read_file(args.asar, ENTRY))), 'sha256': sha(args.asar)}))
     else:

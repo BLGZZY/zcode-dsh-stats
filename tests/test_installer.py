@@ -1,12 +1,16 @@
 import importlib.util
 import json
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-SPEC = importlib.util.spec_from_file_location('installer', Path(__file__).parents[1] / 'install.py')
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+SPEC = importlib.util.spec_from_file_location('installer', ROOT / 'install.py')
 mod = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(mod)
 
 
@@ -133,6 +137,28 @@ class InstallerTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Application changed during install'):
                     mod.install(src, runtime)
             self.assertEqual(src.read_bytes(), upgraded)
+
+    def test_install_lock_excludes_other_process_and_releases_after_exception(self):
+        # Exercise the real host lock: fcntl on Unix and msvcrt on Windows CI.
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp) / 'runtime'
+            runtime.mkdir()
+            code = ('import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); '
+                    'import install\n'
+                    'try:\n'
+                    '    with install.install_lock(Path(sys.argv[2])): pass\n'
+                    'except RuntimeError:\n'
+                    '    sys.exit(23)\n')
+            def attempt():
+                return subprocess.run([sys.executable, '-I', '-c', code, str(ROOT), str(runtime)],
+                                      capture_output=True, text=True, timeout=10)
+            with self.assertRaisesRegex(ValueError, 'release on exception'):
+                with mod.install_lock(runtime):
+                    child = attempt()
+                    self.assertEqual(child.returncode, 23, child.stderr)
+                    raise ValueError('release on exception')
+            child = attempt()
+            self.assertEqual(child.returncode, 0, child.stderr)
 
     def test_auto_install_requires_explicit_enable_and_respects_opt_out(self):
         with tempfile.TemporaryDirectory() as tmp:

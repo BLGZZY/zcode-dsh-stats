@@ -6,7 +6,7 @@
   // Only compact the native 16px dock gutter while our row is actually mounted.
   // A scoped rule preserves React's styles and restores native spacing on cleanup/drafts.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.3.0';
+  dockStyle.dataset.dshStatsLayout = '0.4.0';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
   let packet = { sessions: {}, at: 0 }, dead = false;
@@ -69,7 +69,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.3.0';
+    host.dataset.dshStats = '0.4.0';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>
@@ -195,7 +195,14 @@
   function scan() {
     if (dead) return;
     const seen = new Set();
-    for (const layout of document.querySelectorAll('[data-composer-layout]')) {
+    const layouts = new Set(document.querySelectorAll('[data-composer-layout]'));
+    // Official 3.14.4 has the same card structure, before the explicit layout marker.
+    for (const editor of document.querySelectorAll('.chat-composer-input-surface [data-testid="v4-composer-input"][data-lexical-editor="true"]')) {
+      const form = editor.closest('form');
+      const card = form?.querySelector(':scope > .border-input-border');
+      if (card?.contains(editor) && !card.hasAttribute('data-composer-layout')) layouts.add(card);
+    }
+    for (const layout of layouts) {
       if (layout.dataset.composerLayout === 'inline' || !visible(layout)) continue;
       const form = layout.closest('form');
       // Highspeed/context-header modes put the visible card on this outer surface.

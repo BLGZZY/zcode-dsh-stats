@@ -45,43 +45,62 @@ The row is **24px high**, adapts to narrow panes, follows light/dark mode and ke
 
 ### Option 1: Ask your agent to install it
 
-Copy this into an agent that can operate the terminal on your Mac:
+Copy this into an agent that can operate the terminal on your Windows PC or Mac:
 
 ```text
-Install ZCode DSH Stats on my Mac and enable automatic restoration after official ZCode updates.
+Install ZCode DSH Stats on this Windows PC or Mac and enable automatic restoration after official ZCode updates.
 First read and follow https://raw.githubusercontent.com/BLGZZY/zcode-dsh-stats/main/INSTALL_FOR_AGENTS.md
-Complete the environment checks, source download, installation and verification. You may install Python through an existing Homebrew if needed.
+Complete the environment checks, source download, installation and verification. You may install an official Python package through an existing Homebrew (macOS) or winget (Windows) if needed; do not silently bootstrap a package manager.
 Do not build ZCode Dev or force-quit a running ZCode. If system permissions or compatibility checks block installation, explain the actual blocker and the one step I need to take.
 Report whether installation and automatic recovery succeeded, and whether I still need to restart ZCode.
 ```
 
-Requires an agent with local terminal access. A web-only chat or remote sandbox cannot install into your Mac. [Read the agent installation guide](INSTALL_FOR_AGENTS.md).
+Requires an agent with local terminal access. A web-only chat or remote sandbox cannot install into your local computer. [Read the agent installation guide](INSTALL_FOR_AGENTS.md).
 
 ### Option 2: Install manually
 
-Requires **macOS**, **Python 3.11+** as `python3`, Git, and official ZCode at `/Applications/ZCode.app`. No pip dependencies. The current target was checked against **ZCode 3.16.3 on Apple Silicon**; Windows/Linux and other client versions are not verified.
+Requires **Python 3.11+**, Git, and an installed official ZCode Desktop. No pip dependencies. **Checked targets: macOS / Apple Silicon with ZCode 3.16.3, and Windows 11 x64 with official ZCode 3.14.4.** Windows installation and the live statistics UI were verified with Python 3.11.4 from an existing Anaconda base installation. Linux is not supported; other client versions must pass compatibility checks.
+
+Download the source on either platform:
 
 ```sh
 git clone https://github.com/BLGZZY/zcode-dsh-stats.git
 cd zcode-dsh-stats
+```
+
+**macOS** — Terminal:
+
+```sh
 python3 setup_auto.py enable
 python3 setup_auto.py status
 ```
 
+**Windows** — PowerShell:
+
+```powershell
+.\Install.ps1
+```
+
+The Windows launcher finds an installed Python 3.11+ and retains its absolute executable path. If Python is already installed outside PATH, pass `-PythonPath 'C:\path\to\python.exe'` (using your actual path); no environment activation or duplicate installation is needed. The installer discovers official ZCode; for a custom location, use `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`. If PowerShell blocks scripts, use `py -3 setup_auto.py enable` after confirming `py -3 --version` is 3.11+; no execution-policy change is needed. See [platform setup](docs/guide.md#install-and-inspect).
+
+If Windows reports that the app archive is in use during initial installation, let active tasks finish, fully quit ZCode normally, then rerun setup. The installer does not close the app for you.
+
 Successful setup reports `auto-restore-enabled`. After background tasks finish, **fully quit and reopen ZCode**, then open an existing local conversation. The row appears beneath the input card. A new draft has no statistics row yet.
 
-You can also double-click `Install.command` in the downloaded folder. If macOS reports `Operation not permitted`, see [troubleshooting](docs/guide.md#troubleshooting).
+On macOS, you can also double-click `Install.command` in the downloaded folder. If macOS reports `Operation not permitted`, see [troubleshooting](docs/guide.md#troubleshooting).
 
 > [!NOTE]
 > This is an unofficial, experimental extension. It adds a loader to the installed application's `app.asar`, with a verified backup. It does not use an official composer extension API or rebuild ZCode. Future client changes may need an adaptation.
 
 ## After ZCode updates
 
-The installed local plugin checks its loader when a session starts or resumes. If an update replaced it, the plugin checks compatibility, backs up the new archive and restores the loader. **The restored component takes effect on the next normal app restart.** It never forces a restart or interrupts your tasks.
+The installed local plugin checks its loader when a session starts or resumes. If an update replaced it, the plugin checks compatibility, backs up the new archive and restores the loader. On Windows, a running app can lock the archive: recovery then starts one temporary background helper, which waits up to 24 hours for that official app to exit normally before checking and restoring the loader. Disabling recovery or removing the component cancels the pending repair. **The restored component takes effect on the next app start.** No forced exit, scheduled task or service is used.
 
 Permission errors or incompatible client changes pause restoration. See [update recovery](docs/guide.md#update-recovery). This restores the component; it does not update ZCode or download new extension versions.
 
 ## Update or remove this extension
+
+**macOS:**
 
 ```sh
 # Update the component and its installed recovery copy
@@ -92,13 +111,15 @@ python3 setup_auto.py enable
 python3 install.py remove
 ```
 
-Fully quit and reopen ZCode after either change. To stop restoration while keeping the row, use `python3 setup_auto.py disable`.
+**Windows** — update with `git pull --ff-only` followed by `.\Install.ps1`; remove with `.\Remove.ps1`. Pass the same `-Asar` for a custom installation. The Python equivalents are `py -3 setup_auto.py enable` and `py -3 install.py remove`.
+
+Fully quit and reopen ZCode after either change. To stop restoration while keeping the row, use `python3 setup_auto.py disable` (macOS) or `py -3 setup_auto.py disable` (Windows).
 
 ## Data and privacy
 
 The collector opens the local usage database **read-only** and selects numeric usage for the exact current session. It does not read prompts, access API keys, send telemetry or make model requests. Only completed main requests are counted. Local retention, missing timing samples and legacy cache accounting affect totals; see [metric definitions](docs/guide.md#metrics).
 
-Installation writes the app loader, the extension's own files/backups and a user-level local plugin registration. Recovery contributes a short maintenance notice to the current session only when a repair succeeds or fails.
+Installation writes the app loader, the extension's own files/backups and a user-level local plugin registration. Recovery contributes a short maintenance notice to the current session when a repair succeeds, fails or is deferred until app exit.
 
 ## Documentation and contributing
 

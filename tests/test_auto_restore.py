@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +75,19 @@ class AutoRestoreTests(unittest.TestCase):
         with mock.patch.object(auto.installer, 'install') as install:
             self.assertEqual(self.restore(), {'state': 'disabled'})
             install.assert_not_called()
+
+    def test_contended_auto_lock_returns_busy_then_releases_on_all_hosts(self):
+        from host_platform import file_lock
+        self.enable()
+        with file_lock(self.runtime / '.auto.lock', 'test lock held'), \
+             mock.patch.object(auto.installer, 'install') as install, \
+             mock.patch.object(auto, 'check_target') as check:
+            self.assertEqual(self.restore()['state'], 'busy')
+            install.assert_not_called()
+            check.assert_not_called()
+        with mock.patch.object(auto, 'check_target', return_value={'version': 'test'}), \
+             mock.patch.object(auto.installer, 'install', return_value={'state': 'installed-restart-required'}):
+            self.assertEqual(self.restore()['state'], 'installed-restart-required')
 
     def test_present_matching_loader_is_fast_path_without_reinstall(self):
         self.enable()
@@ -159,7 +173,8 @@ class AutoRestoreTests(unittest.TestCase):
     def test_permission_failure_in_installer_becomes_status_not_hook_failure(self):
         self.enable()
         original = self.asar.read_bytes()
-        with mock.patch.object(auto, 'check_target', return_value={'version': 'test.2'}), \
+        with mock.patch.object(auto, 'sys', SimpleNamespace(platform='darwin')), \
+             mock.patch.object(auto, 'check_target', return_value={'version': 'test.2'}), \
              mock.patch.object(auto.installer, 'install', side_effect=PermissionError('read-only app')):
             result = self.restore()
         self.assertEqual(result['state'], 'repair-failed')
@@ -167,6 +182,87 @@ class AutoRestoreTests(unittest.TestCase):
         output = auto.hook_output(result)
         self.assertTrue(output['suppressOutput'])
         self.assertIn('read-only app', output['systemMessage'])
+
+    def test_running_windows_app_permission_failure_defers_without_error_backoff(self):
+        import windows_restore
+        self.enable()
+        original = self.asar.read_bytes()
+        with mock.patch.object(auto, 'sys', SimpleNamespace(platform='win32')), \
+             mock.patch.object(auto, 'check_target', return_value={'version': 'test.2'}), \
+             mock.patch.object(auto.installer, 'install', side_effect=PermissionError('app archive is in use')), \
+             mock.patch.object(windows_restore, 'is_app_running', return_value=True) as running, \
+             mock.patch.object(windows_restore, 'queue_restore', return_value={'state': 'queued'}) as queue:
+            result = self.restore()
+        self.assertEqual(result['state'], 'deferred-until-exit')
+        self.assertNotIn('retryAfter', result)
+        running.assert_called_once_with(self.asar)
+        queue.assert_called_once_with(self.asar, self.runtime)
+        stored = json.loads((self.runtime / 'auto-status.json').read_text())
+        self.assertEqual(stored['state'], 'deferred-until-exit')
+        self.assertNotIn('retryAfter', stored)
+        self.assertEqual(stored['identity'], auto.identity(self.asar))
+        self.assertEqual(self.asar.read_bytes(), original)
+
+    def test_permission_errors_outside_running_windows_app_keep_failure_backoff(self):
+        import windows_restore
+        self.enable()
+        for platform, running, defer in (('darwin', True, True), ('win32', False, True),
+                                         ('win32', True, False)):
+            with self.subTest(platform=platform, running=running, defer=defer):
+                (self.runtime / 'auto-status.json').unlink(missing_ok=True)
+                with mock.patch.object(auto, 'sys', SimpleNamespace(platform=platform)), \
+                     mock.patch.object(auto, 'check_target', return_value={'version': 'test.2'}), \
+                     mock.patch.object(auto.installer, 'install', side_effect=PermissionError('permission denied')) as install, \
+                     mock.patch.object(windows_restore, 'is_app_running', return_value=running), \
+                     mock.patch.object(windows_restore, 'queue_restore') as queue:
+                    result = auto.run(self.runtime, now=self.now, sleep=self.sleep, defer=defer)
+                    self.assertEqual(result['state'], 'repair-failed')
+                    self.assertEqual(result['retryAfter'], self.now + auto.BACKOFF_SECONDS)
+                    self.assertEqual(auto.run(self.runtime, now=self.now, sleep=self.sleep, defer=defer)['state'], 'backoff')
+                    install.assert_called_once()
+                    queue.assert_not_called()
+                stored = json.loads((self.runtime / 'auto-status.json').read_text())
+                self.assertEqual(stored['state'], 'repair-failed')
+                self.assertEqual(stored['retryAfter'], result['retryAfter'])
+
+    def test_repeated_pending_windows_check_ensures_worker_without_retrying_locked_install(self):
+        import windows_restore
+        self.enable()
+        (self.runtime / 'auto-status.json').write_text(json.dumps({
+            'state': 'deferred-until-exit', 'identity': auto.identity(self.asar), 'checkedAt': self.now - 1}))
+        with mock.patch.object(auto, 'sys', SimpleNamespace(platform='win32')), \
+             mock.patch.object(auto.installer, 'install') as install, \
+             mock.patch.object(auto, 'check_target') as check, \
+             mock.patch.object(windows_restore, 'is_app_running', return_value=True), \
+             mock.patch.object(windows_restore, 'queue_restore', return_value={'state': 'queued'}) as queue:
+            result = self.restore()
+        self.assertEqual(result['state'], 'deferred-until-exit')
+        self.assertNotIn('retryAfter', result)
+        queue.assert_called_once_with(self.asar, self.runtime)
+        install.assert_not_called()
+        check.assert_not_called()
+
+    def test_permission_failure_before_install_does_not_spawn_exit_worker(self):
+        import windows_restore
+        self.enable()
+        with mock.patch.object(auto, 'sys', SimpleNamespace(platform='win32')), \
+             mock.patch.object(auto, 'check_target', side_effect=PermissionError('cannot inspect application')), \
+             mock.patch.object(windows_restore, 'is_app_running', return_value=True), \
+             mock.patch.object(windows_restore, 'queue_restore') as queue:
+            result = self.restore()
+        self.assertEqual(result['state'], 'repair-failed')
+        self.assertEqual(result['retryAfter'], self.now + auto.BACKOFF_SECONDS)
+        queue.assert_not_called()
+
+    def test_deferred_hook_explains_normal_exit_repair_in_session_context(self):
+        output = auto.hook_output({'state': 'deferred-until-exit'})
+        self.assertTrue(output['suppressOutput'])
+        self.assertIn('退出', output['systemMessage'])
+        self.assertIn('恢复', output['systemMessage'])
+        self.assertNotIn('自动恢复暂停', output['systemMessage'])
+        self.assertEqual(output['hookSpecificOutput'], {
+            'hookEventName': 'SessionStart', 'additionalContext': output['systemMessage'],
+        })
 
     def test_hook_catches_early_permission_error_and_emits_only_valid_json(self):
         output = io.StringIO()
@@ -279,6 +375,48 @@ class CompatibilityTests(unittest.TestCase):
                         compatibility.check_target(self.asar)
                     fuses.assert_not_called()
                 self.assertEqual(self.asar.read_bytes(), original)
+
+    def test_windows_executable_fuses_are_checked_without_modification(self):
+        asar = Path(self.directory.name) / 'Windows ZCode/resources/app.asar'
+        binary = asar.parent.parent / 'ZCode.exe'
+        archive(asar)
+        binary.write_bytes(b'MZ fixture' + compatibility.SENTINEL + bytes((1, 8)) + b'00000000')
+        before = (asar.read_bytes(), binary.read_bytes())
+        self.assertEqual(compatibility.check_target(asar), {'version': 'test.2', 'compatible': True})
+        self.assertEqual((asar.read_bytes(), binary.read_bytes()), before)
+        binary.write_bytes(b'MZ fixture' + compatibility.SENTINEL + bytes((1, 8)) + b'00001000')
+        before = (asar.read_bytes(), binary.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'integrity validation is enabled'):
+            compatibility.check_target(asar)
+        self.assertEqual((asar.read_bytes(), binary.read_bytes()), before)
+
+    def test_verified_3144_legacy_selectors_are_accepted_without_writes(self):
+        asar = Path(self.directory.name) / 'Legacy ZCode/resources/app.asar'
+        binary = asar.parent.parent / 'ZCode.exe'
+        package = {'name': '@zcode/desktop', 'version': '3.14.4', 'main': 'out/main/index.js'}
+        archive(asar, selectors=compatibility.LEGACY_SELECTORS, package=package)
+        binary.write_bytes(b'MZ fixture' + compatibility.SENTINEL + bytes((1, 8)) + b'00000000')
+        before = (asar.read_bytes(), binary.read_bytes())
+        self.assertEqual(compatibility.check_target(asar), {'version': '3.14.4', 'compatible': True})
+        self.assertEqual((asar.read_bytes(), binary.read_bytes()), before)
+
+    def test_legacy_profile_rejects_unknown_versions_and_every_missing_selector(self):
+        for version in ('3.14.3', '3.14.5', '3.14.4-beta', None):
+            with self.subTest(version=version):
+                package = {'name': '@zcode/desktop', 'version': version, 'main': 'out/main/index.js'}
+                archive(self.asar, selectors=compatibility.LEGACY_SELECTORS, package=package)
+                before = (self.asar.read_bytes(), self.binary.read_bytes())
+                with self.assertRaisesRegex(ValueError, 'composer structure is not supported'):
+                    compatibility.check_target(self.asar)
+                self.assertEqual((self.asar.read_bytes(), self.binary.read_bytes()), before)
+        package = {'name': '@zcode/desktop', 'version': '3.14.4', 'main': 'out/main/index.js'}
+        for missing in compatibility.LEGACY_SELECTORS:
+            with self.subTest(missing=missing):
+                archive(self.asar, selectors=compatibility.LEGACY_SELECTORS - {missing}, package=package)
+                before = (self.asar.read_bytes(), self.binary.read_bytes())
+                with self.assertRaisesRegex(ValueError, 'composer structure is not supported'):
+                    compatibility.check_target(self.asar)
+                self.assertEqual((self.asar.read_bytes(), self.binary.read_bytes()), before)
 
 
 if __name__ == '__main__':

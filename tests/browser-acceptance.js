@@ -79,6 +79,41 @@ async (page) => {
   await page.locator('[data-dsh-stats] .context').click();
   await context.waitFor({state:'hidden'});
   passed.push('usage exact totals and isolation','native context and progress','three independent anchors','one card at a time','same button toggles closed','Escape focus and propagation');
+  // Verified Windows 3.14.4 exposes the legacy composer markers without data-composer-layout.
+  await page.evaluate(()=>{
+    const composer=document.querySelector('[data-composer-layout]'), input=composer.querySelector('textarea');
+    const surface=document.querySelector('.chat-composer-input-surface');
+    const rect=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
+    window.acceptanceLegacyFixture={composer,input,surface,layout:composer.getAttribute('data-composer-layout'),
+      className:composer.className,testid:input.getAttribute('data-testid'),lexical:input.getAttribute('data-lexical-editor'),
+      surfaceRect:rect(surface),hostRect:rect(document.querySelector('[data-dsh-stats]'))};
+    composer.classList.add('border-input-border');
+    input.setAttribute('data-testid','v4-composer-input');input.setAttribute('data-lexical-editor','true');
+    composer.removeAttribute('data-composer-layout');
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await page.getByRole('button',{name:'6 轮 58 步 · 204 tok/s'}).waitFor();
+  check(await page.evaluate(()=>{
+    const saved=window.acceptanceLegacyFixture,hosts=document.querySelectorAll('[data-dsh-stats]');
+    const matches=(el,before)=>{const r=el.getBoundingClientRect();return ['x','y','width','height'].every(k=>Math.abs(r[k]-before[k])<1);};
+    return !document.querySelector('[data-composer-layout]') && hosts.length===1 &&
+      hosts[0].closest('[data-session-id]')?.dataset.sessionId==='demo' && saved.surface.nextElementSibling===hosts[0] &&
+      matches(saved.surface,saved.surfaceRect) && matches(hosts[0],saved.hostRect);
+  }),'legacy profile has one correctly scoped host and unchanged composer/footer geometry');
+  await page.locator('[data-dsh-stats] .activity').click();
+  await panel.waitFor({state:'visible'});
+  await assertSingleCard(panel,'activity');
+  await equalRows(panel,[['模型用时','8分 23秒'],['工具调用用时','13分 20秒'],['首 token 平均（TTFT）','3.9秒'],['输出速度（TPS）','204 tok/s']], 'legacy profile keeps session statistics and card anchor');
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{
+    const s=window.acceptanceLegacyFixture;s.composer.className=s.className;s.composer.setAttribute('data-composer-layout',s.layout);
+    for(const [name,value] of [['data-testid',s.testid],['data-lexical-editor',s.lexical]]) {
+      if(value===null)s.input.removeAttribute(name);else s.input.setAttribute(name,value);
+    }
+    delete window.acceptanceLegacyFixture;window.__dshStats.receive(window.demoPacket());
+  });
+  check(await page.locator('[data-dsh-stats]').count()===1,'restored modern profile keeps exactly one host');
+  passed.push('Windows 3.14.4 legacy profile mount, scope and geometry');
   // A live paint must preserve the close node and keyboard focus in every card.
   for (const [kind,card] of [['activity',panel],['usage',usage],['context',context]]) {
     await page.locator('[data-dsh-stats] .'+kind).click();

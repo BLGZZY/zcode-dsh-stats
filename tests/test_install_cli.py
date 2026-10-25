@@ -75,6 +75,17 @@ class InstallCliTests(unittest.TestCase):
             check.assert_not_called()
             install.assert_called_once_with(self.asar, self.runtime, False, True)
 
+    def test_explicit_windows_archive_and_runtime_paths_reach_installer_unchanged(self):
+        self.asar = self.root / 'Program Files/ZCode/resources/app.asar'
+        self.runtime = self.root / 'User Profile/.zcode/dsh-stats'
+        with mock.patch.object(compatibility, 'check_target') as check, \
+             mock.patch.object(installer, 'install', return_value={'state': 'installed-restart-required'}) as install:
+            self.assertEqual(self.invoke('install')['state'], 'installed-restart-required')
+        check.assert_called_once_with(self.asar)
+        install.assert_called_once_with(self.asar, self.runtime, False, False)
+        self.assertFalse(self.asar.exists())
+        self.assertFalse(self.runtime.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

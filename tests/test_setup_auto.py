@@ -183,7 +183,7 @@ class SetupTests(unittest.TestCase):
             market, plugin = setup.build(self.runtime)
         self.assertEqual(market, self.market)
         self.assertEqual(plugin, self.plugin)
-        required = ('install.py', 'auto_restore.py', 'compatibility.py', 'hooks/session-start.py',
+        required = ('install.py', 'auto_restore.py', 'compatibility.py', 'host_platform.py', 'windows_restore.py', 'hooks/session-start.py',
                     'runtime/loader.cjs', 'runtime/collector.py', 'runtime/overlay.js', 'LICENSE', 'vendor/LICENSE')
         for relative in required:
             path = plugin / relative
@@ -204,7 +204,7 @@ class SetupTests(unittest.TestCase):
         self.assertFalse((self.runtime / 'auto.json').exists())
         cli.assert_not_called(); install.assert_not_called(); check.assert_not_called()
         # Import from the copied distribution in an isolated Python process. No hook is run.
-        code = 'import sys; from pathlib import Path; root=Path(sys.argv[1]); sys.path.insert(0,str(root)); import auto_restore,install,compatibility; assert all(Path(m.__file__).parent==root for m in (auto_restore,install,compatibility))'
+        code = 'import sys; from pathlib import Path; root=Path(sys.argv[1]); sys.path.insert(0,str(root)); import auto_restore,install,compatibility,host_platform,windows_restore; assert all(Path(m.__file__).parent==root for m in (auto_restore,install,compatibility,host_platform,windows_restore))'
         completed = subprocess.run([sys.executable, '-I', '-c', code, str(plugin)],
                                    capture_output=True, text=True, timeout=10)
         self.assertEqual(completed.returncode, 0, completed.stderr)
@@ -228,6 +228,22 @@ class SetupTests(unittest.TestCase):
                  mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, stdout=stdout, stderr='')):
                 with self.assertRaises(RuntimeError):
                     setup.cli(self.asar, ['validate', 'unused'])
+
+    def test_windows_cli_uses_exe_and_shipped_cli_as_separate_arguments(self):
+        asar = self.root / 'Windows ZCode/resources/app.asar'
+        executable = asar.parent.parent / 'ZCode.exe'
+        bundle = asar.parent / 'glm/zcode.cjs'
+        for path in (asar, executable, bundle):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'fixture')
+        reply = subprocess.CompletedProcess([], 0, stdout='{"ok":true}', stderr='')
+        with mock.patch.object(setup.subprocess, 'run', return_value=reply) as run:
+            self.assertEqual(setup.cli(asar, ['validate', str(self.plugin)]), {'ok': True})
+        args, kwargs = run.call_args
+        self.assertEqual(args[0], [str(executable), str(bundle), 'plugins',
+                                  'validate', str(self.plugin), '--json'])
+        self.assertEqual(kwargs['env']['ELECTRON_RUN_AS_NODE'], '1')
+        self.assertFalse(kwargs.get('shell', False))
 
 
 if __name__ == '__main__':

@@ -6,6 +6,10 @@ __pycache__/
 output/
 node_modules/
 *.asar
+*.exe
+*.dll
+*.msi
+*.zip
 *.app/
 *.sqlite*
 *.db

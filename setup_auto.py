@@ -11,10 +11,10 @@ from pathlib import Path
 import install as installer
 from auto_restore import atomic_json, read_json
 from compatibility import check_target
+from host_platform import app_paths, default_asar
 
 ROOT = Path(__file__).resolve().parent
 PLUGIN_ID = 'zcode-dsh-stats@dsh-stats-local'
-DEFAULT_ASAR = Path('/Applications/ZCode.app/Contents/Resources/app.asar')
 
 
 def stable_python():
@@ -27,14 +27,14 @@ def stable_python():
 def build(runtime):
     market = runtime / 'auto-marketplace'
     plugin = market / 'plugins/zcode-dsh-stats'
-    for name in ('install.py', 'auto_restore.py', 'compatibility.py', 'hooks/session-start.py',
+    for name in ('install.py', 'auto_restore.py', 'compatibility.py', 'host_platform.py', 'windows_restore.py', 'hooks/session-start.py',
                  'runtime/loader.cjs', 'runtime/collector.py', 'runtime/overlay.js', 'LICENSE', 'vendor/LICENSE'):
         target = plugin / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
     (plugin / '.zcode-plugin').mkdir(exist_ok=True)
     atomic_json(plugin / '.zcode-plugin/plugin.json', {
-        'name': 'zcode-dsh-stats', 'version': '0.3.0',
+        'name': 'zcode-dsh-stats', 'version': '0.4.0',
         'description': '官方 ZCode 更新后自动恢复输入框底部 DSH 风格统计条。仅检查和恢复本组件，必要时下次正常重启生效。',
         'author': {'name': 'Local'}, 'license': 'MIT',
     })
@@ -47,18 +47,17 @@ def build(runtime):
     }]}})
     atomic_json(market / 'marketplace.json', {
         'name': 'dsh-stats-local', 'owner': {'name': 'Local'},
-        'plugins': [{'name': 'zcode-dsh-stats', 'source': './plugins/zcode-dsh-stats', 'version': '0.3.0'}],
+        'plugins': [{'name': 'zcode-dsh-stats', 'source': './plugins/zcode-dsh-stats', 'version': '0.4.0'}],
     })
     return market, plugin
 
 
 def cli(asar, args):
-    contents = asar.parent.parent
-    exe = contents / 'MacOS/ZCode'
-    bundle = contents / 'Resources/glm/zcode.cjs'
+    paths = app_paths(asar)
+    exe, bundle = paths['executable'], paths['cli']
     result = subprocess.run([str(exe), str(bundle), 'plugins', *args, '--json'],
                             env={**os.environ, 'ELECTRON_RUN_AS_NODE': '1'},
-                            capture_output=True, text=True, timeout=90)
+                            capture_output=True, text=True, encoding='utf-8', timeout=90)
     try:
         data = json.loads(result.stdout)
     except ValueError as exc:
@@ -119,9 +118,11 @@ def disable(runtime):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['enable', 'disable', 'status', 'build'])
-    parser.add_argument('--asar', type=Path, default=DEFAULT_ASAR)
+    parser.add_argument('--asar', type=Path)
     parser.add_argument('--runtime', type=Path, default=Path.home() / '.zcode-dsh-stats')
     args = parser.parse_args()
+    if args.action == 'enable' and args.asar is None:
+        args.asar = default_asar()
     if args.action == 'enable':
         result = enable(args.asar, args.runtime)
     elif args.action == 'disable':

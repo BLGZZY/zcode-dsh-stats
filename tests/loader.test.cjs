@@ -8,7 +8,8 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../runtime/loader.cjs'), 'utf8');
-const MAIN_URL = 'file:///Applications/ZCode.app/Contents/Resources/app.asar/out/renderer/index.html?restoreSession=true';
+const WINDOWS_URL = 'file:///C:/Program%20Files/ZCode/resources/app.asar/out/renderer/index.html?restoreSession=true';
+const MAIN_URL = process.platform === 'win32' ? WINDOWS_URL : 'file:///Applications/ZCode.app/Contents/Resources/app.asar/out/renderer/index.html?restoreSession=true';
 const OVERLAY = 'window.__dshStats = window.__testStats;';
 
 function windowFixture(ids, options = {}) {
@@ -117,6 +118,14 @@ test('injects only live packaged ZCode renderer windows', async () => {
   assert.deepEqual(harness.queries, [['official-session']]);
   assert.equal(valid.received.length, 1);
   for (const wc of denied) assert.equal(wc.scripts.length, 0);
+  harness.app.emit('will-quit');
+});
+
+test('Windows packaged file URLs with spaces receive the correct session', async () => {
+  const wc = windowFixture(['windows-session'], { url: WINDOWS_URL });
+  const harness = await launch([wc]);
+  assert.deepEqual(harness.queries, [['windows-session']]);
+  assert.equal(wc.received[0].sessions['windows-session'].sampleOwner, 'windows-session');
   harness.app.emit('will-quit');
 });
 
