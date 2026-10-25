@@ -15,7 +15,7 @@ The compact-statistics experience of DeepSeek Harness (DSH) for the official ZCo
 
 *Demo data. Once installed, the row reads your current session's local usage records; the animation is rendered deterministically from [docs/record-demo.html](docs/record-demo.html) and can be regenerated at any time.*
 
-简体中文 · [English](README.md)
+[简体中文](README.zh-CN.md) · English
 
 [✨ At a glance](#-at-a-glance) · [⚡ Install](#-install) · [⚙ How it works](#-how-it-works) · [🔄 After updates](#-after-zcode-updates) · [🛡 Privacy](#-data-and-privacy) · [📚 Full guide](docs/guide.md)
 
