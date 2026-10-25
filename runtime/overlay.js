@@ -6,10 +6,10 @@
   // Only compact the native 16px dock gutter while our row is actually mounted.
   // A scoped rule preserves React's styles and restores native spacing on cleanup/drafts.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.4.0';
+  dockStyle.dataset.dshStatsLayout = '0.4.1';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
-  let packet = { sessions: {}, at: 0 }, dead = false;
+  let packet = { sessions: {}, at: 0 }, dead = false, positionFrame = null;
   const css = `
     :host{display:block;color:var(--color-foreground-subtle,#626773);font:12px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark;min-width:0;width:100%;margin-top:3px;flex:none}
     *{box-sizing:border-box}.row{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;height:24px;padding:0;font-variant-numeric:tabular-nums}
@@ -69,7 +69,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.4.0';
+    host.dataset.dshStats = '0.4.1';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>
@@ -151,6 +151,9 @@
     state.detail = detail;
     state.position = () => {
       const r = state.trigger.getBoundingClientRect();
+      if (!state.trigger.isConnected || r.width === 0 || r.height === 0 || r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) {
+        state.close();return;
+      }
       panel.style.left = `${Math.max(12, Math.min(r.left, innerWidth - panel.offsetWidth - 12))}px`;
       panel.style.top = `${Math.max(12, r.top - panel.offsetHeight - 8)}px`;
     };
@@ -161,7 +164,7 @@
       panel.showPopover();
       button.setAttribute('aria-expanded', 'true');
       state.position();
-      shadow.querySelector('.close').focus();
+      shadow.querySelector('.close').focus({ preventScroll: true });
     });
     shadow.querySelector('.close').addEventListener('click', () => { state.close();state.trigger?.focus(); });
     shadow.addEventListener('keydown', e => {
@@ -223,14 +226,24 @@
   }
   const outside = e => { for (const s of roots.values()) if (!e.composedPath().includes(s.host)) s.close(); };
   const closeAll = () => { for (const s of roots.values()) s.close(); };
+  // Streaming answers auto-scroll their timeline. Keep cards readable during that
+  // scroll, and follow the trigger if a scrolling ancestor actually moves it.
+  const schedulePosition = () => {
+    if (dead || positionFrame !== null) return;
+    positionFrame = requestAnimationFrame(() => {
+      positionFrame = null;
+      if (dead) return;
+      for (const s of roots.values()) if (!s.shadow.querySelector('.details').hidden) s.position();
+    });
+  };
   document.addEventListener('pointerdown', outside, true);
-  window.addEventListener('scroll', closeAll, true);
-  window.addEventListener('resize', closeAll);
+  window.addEventListener('scroll', schedulePosition, true);
+  window.addEventListener('resize', schedulePosition);
   const timer = setInterval(scan, 500);
   window.__dshStats = {
     wanted: () => [...new Set([...roots.values()].map(s => s.sid))],
     receive: data => { packet = data;scan(); },
-    dispose: () => { dead = true;clearInterval(timer);closeAll();for (const s of roots.values()) s.host.remove();roots.clear();dockStyle.remove();document.removeEventListener('pointerdown', outside, true);window.removeEventListener('scroll', closeAll, true);window.removeEventListener('resize', closeAll); }
+    dispose: () => { dead = true;clearInterval(timer);if (positionFrame !== null) cancelAnimationFrame(positionFrame);closeAll();for (const s of roots.values()) s.host.remove();roots.clear();dockStyle.remove();document.removeEventListener('pointerdown', outside, true);window.removeEventListener('scroll', schedulePosition, true);window.removeEventListener('resize', schedulePosition); }
   };
   scan();
 })();

@@ -100,6 +100,8 @@ Context details use only native total usage and capacity. System/tool/message to
 
 Each pane uses its exact session ID. A new draft hides the row; a remote session without local records shows unavailable instead of borrowing another session's values. Collector data older than 10 seconds is hidden.
 
+Since **0.4.1**, detail cards stay open while a streaming answer auto-scrolls the conversation or the card's own content scrolls. Scrolling an ancestor or resizing the window updates the card's anchor; scrolling its button out of view dismisses it. Earlier versions incorrectly dismissed cards on every scroll event. Update the extension and fully quit/reopen ZCode to load the fix.
+
 ## Troubleshooting
 
 - **Python error:** check `python3 --version` (macOS) or `py -3 --version` (Windows); Python 3.11+ is required. No pip packages are needed.

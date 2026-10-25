@@ -1,6 +1,6 @@
 {
   "name": "zcode-dsh-stats",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "target": "Official ZCode desktop; additive app.asar entry loader, no source build",
   "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the desktop dock's original 16px bottom padding to 2px; restore native spacing when removed. Includes turns, completed requests, weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
   "source": "Read-only SQLite model_usage; completed main_turn requests in retained local records (normally 30 days); exact pane session ID and native context.",
@@ -38,7 +38,7 @@
     "activity": "Client-recorded model request duration sum; associated main-turn tool dispatch-to-terminal intervals, including queues/approval waits and terminal errors/cancellations, with parallel overlap summed; mean TTFT from paired samples; weighted decode TPS. Each metric has sample coverage.",
     "tokens": "Total plus cache hit, uncached input/cache read/cache write/output where supported. When cache write is unknown, label input minus cache read as non-cache-read input. Partial totals are marked individually, never falsely reconciled.",
     "context": "Native used/limit and remaining capacity, with an accessible utilization bar. System/tool/message token breakdown is unavailable; never infer token fractions from character counts.",
-    "interaction": "Each pill opens its own anchored card; live data refresh, viewport clamping, one active card, keyboard/outside-click dismissal. No wall of static calculation notes."
+    "interaction": "Each pill opens its own anchored card; live data refresh, viewport clamping, one active card, keyboard/outside-click dismissal. Streaming timeline scroll and card-content scroll keep the card open; ancestor scroll and resize update its position, and an offscreen trigger closes it. No wall of static calculation notes."
   },
   "platforms": {
     "macOS": "Official ZCode.app; POSIX locks; Electron Framework fuse inspection; bundled MacOS/ZCode CLI. Existing support retained.",

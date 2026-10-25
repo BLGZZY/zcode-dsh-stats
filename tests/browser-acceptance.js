@@ -1,5 +1,7 @@
 async (page) => {
   page.setDefaultTimeout(5000);
+  // Disable the browser's heuristic file cache when rerunning against the local server.
+  await page.route('**/runtime/overlay.js', route=>route.continue());
   const check = (ok, label) => { if (!ok) throw new Error(label); };
   const passed=[];
   const rows = async card => card.locator('.body .line').evaluateAll(items => items.map(row =>
@@ -128,6 +130,51 @@ async (page) => {
   }
   await page.evaluate(()=>{document.querySelector('[data-usage-used]').dataset.usageUsed='160000';window.__dshStats.receive(window.demoPacket());});
   passed.push('live updates preserve close focus in all cards');
+  // A streaming answer scrolls its timeline without moving the composer. It
+  // must not dismiss a card, even while telemetry paints and focus is inside it.
+  await page.evaluate(()=>{
+    const timeline=document.createElement('div');timeline.id='acceptance-stream';
+    timeline.style.cssText='position:fixed;top:80px;right:0;width:30px;height:60px;overflow:auto';
+    timeline.innerHTML='<div style="height:1000px"></div>';document.body.append(timeline);
+  });
+  for (const [kind,card] of [['activity',panel],['usage',usage],['context',context]]) {
+    await page.locator('[data-dsh-stats] .'+kind).click();
+    const before=await card.boundingBox();
+    for(let tick=0;tick<8;tick++) {
+      await page.evaluate(tick=>{
+        const timeline=document.querySelector('#acceptance-stream');
+        timeline.firstElementChild.style.height=(1000+tick*100)+'px';
+        timeline.scrollTop=timeline.scrollHeight;
+        window.__dshStats.receive(window.demoPacket());
+      },tick);
+      await page.waitForTimeout(40);
+      check(await card.isVisible(),kind+' stays open during streamed timeline scroll and telemetry refresh');
+    }
+    const after=await card.boundingBox();
+    check(Math.abs(before.x-after.x)<1 && Math.abs(before.y-after.y)<1,kind+' stays anchored while the timeline scrolls');
+    check(await card.getByRole('button',{name:'关闭详情'}).evaluate(el=>el.getRootNode().activeElement===el),kind+' keeps focus while streaming');
+    // A small viewport can make the card itself scrollable too.
+    await card.evaluate(el=>{el.style.maxHeight='90px';el.scrollTop=el.scrollHeight;});
+    await page.waitForTimeout(60);
+    check(await card.isVisible(),kind+' remains readable while its own content scrolls');
+    await card.evaluate(el=>el.style.removeProperty('max-height'));
+    await page.keyboard.press('Escape');
+    await card.waitFor({state:'hidden'});
+  }
+  await page.evaluate(()=>{document.querySelector('#acceptance-stream').remove();document.body.style.minHeight='1800px';});
+  await page.locator('[data-dsh-stats] .activity').click();
+  await page.evaluate(()=>window.scrollTo(0,30));
+  await page.waitForTimeout(100);
+  await assertSingleCard(panel,'activity');
+  await page.setViewportSize({width:1050,height:800});
+  await page.waitForTimeout(100);
+  await assertSingleCard(panel,'activity');
+  await page.evaluate(()=>window.scrollTo(0,1200));
+  await panel.waitFor({state:'hidden'});
+  await page.evaluate(()=>{window.scrollTo(0,0);document.body.style.removeProperty('min-height');});
+  await page.setViewportSize({width:1100,height:800});
+  await page.locator('[data-dsh-stats] .activity').waitFor();
+  passed.push('all three cards survive streaming and internal scroll','ancestor scroll and resize keep anchor','offscreen anchor dismisses card');
   await setStats({modelSamples:57,toolSamples:73,ttftMs:222300,ttftSamples:57,speedSamples:57,tokenSamples:57,cacheSamples:57,cacheReadSamples:57,outputSamples:57,cacheWriteTokens:null,cacheWriteSamples:0,uncachedInputTokens:null,uncachedInputSamples:0,nonCacheReadInputTokens:874308,nonCacheReadInputSamples:57});
   await page.locator('[data-dsh-stats] .activity').click();
   await equalRows(panel,[['模型用时','8分 23秒*'],['工具调用用时','13分 20秒*'],['首 token 平均（TTFT）','3.9秒*'],['输出速度（TPS）','204 tok/s*']],'partial activity metrics carry stars');
