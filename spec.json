@@ -1,0 +1,36 @@
+{
+  "name": "zcode-dsh-stats",
+  "version": "0.2.2",
+  "target": "Official ZCode desktop; additive app.asar entry loader, no source build",
+  "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the desktop dock's original 16px bottom padding to 2px; restore native spacing when removed. Includes turns, completed requests, weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
+  "source": "Read-only SQLite model_usage; completed main_turn requests in retained local records (normally 30 days); exact pane session ID and native context.",
+  "speed": "sum(output_tokens) / sum(completed_at - first_token_at) for paired valid samples; completed requests, not streaming instantaneous rate",
+  "unknown": "Normalize legacy inclusive/exclusive cached input using official totals; missing persisted zero requires raw numeric evidence; partial samples are marked.",
+  "isolation": "No project, credential, session or model configuration writes; no network; maintenance-only SessionStart hook ignores prompt input; each pane owns its session",
+  "installation": "Snapshot app.asar before install; validate all packed file contents; atomic replacement; uninstall removes only our marked loader and preserves other changes",
+  "acceptance": [
+    "accounting tests",
+    "outside-card placement, centered single row, at most 27px added height",
+    "session switching",
+    "split panes",
+    "draft no history",
+    "light/dark",
+    "narrow window",
+    "keyboard detail dialog",
+    "asar install/remove round trip",
+    "official app verification after restart"
+  ],
+  "automaticRestore": {
+    "trigger": "Official ZCode plugin SessionStart startup/resume/clear/compact",
+    "enablement": "One-time explicit setup; no daemon or external network",
+    "guardrails": [
+      "opt-out survives removal",
+      "same-image failures back off 30 minutes",
+      "stable target and content hash checked",
+      "renderer selectors and Electron integrity mode validated",
+      "no automatic restart",
+      "permissions never changed"
+    ],
+    "activation": "Restored entry becomes active on next normal app restart"
+  }
+}

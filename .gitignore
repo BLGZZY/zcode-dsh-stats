@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+.playwright-cli/
+output/
+node_modules/
+*.asar
+*.app/
+*.sqlite*
+*.db
+*.log
+.env
+.env.*
+backups/
+.zcode-dsh-stats/
