@@ -43,6 +43,6 @@
   "platforms": {
     "macOS": "Official ZCode.app; POSIX locks; Electron Framework fuse inspection; bundled MacOS/ZCode CLI. Existing support retained.",
     "Windows": "Official ZCode.exe/resources/app.asar; native msvcrt byte locks; EXE fuse inspection; bundled ZCode.exe CLI. UTF-8 JSON/process-hook output, explicit --asar and persistent Python paths. No elevation or forced process termination.",
-    "validation": "Windows 11 x64 / official ZCode 3.14.4: PowerShell installation, native session data, all three live cards, and same-version loader-overwrite replay with delayed restoration after normal exit and a verified restart. macOS 3.16.3 compatibility retained. Future upgrades are not assumed compatible."
+    "validation": "Windows 11 x64 / official ZCode 3.14.4 and 3.16.3: PowerShell installation, native session data, and all three live cards verified. On 2026-10-25, a real official stable-channel upgrade from 3.14.4 to 3.16.3 replaced the loader; native SessionStart queued automatic recovery, normal exit allowed the worker to restore it, and all three cards passed after restart without manual setup or restore commands. macOS 3.16.3 compatibility retained. Future upgrades are not assumed compatible."
   }
 }

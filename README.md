@@ -59,7 +59,7 @@ Requires an agent with local terminal access. A web-only chat or remote sandbox 
 
 ### Option 2: Install manually
 
-Requires **Python 3.11+**, Git, and an installed official ZCode Desktop. No pip dependencies. **Checked targets: macOS / Apple Silicon with ZCode 3.16.3, and Windows 11 x64 with official ZCode 3.14.4.** Windows installation and the live statistics UI were verified with Python 3.11.4 from an existing Anaconda base installation. Linux is not supported; other client versions must pass compatibility checks.
+Requires **Python 3.11+**, Git, and an installed official ZCode Desktop. No pip dependencies. **Checked targets: macOS / Apple Silicon with ZCode 3.16.3, and Windows 11 x64 with official ZCode 3.14.4 and 3.16.3.** Windows installation and the live statistics UI on both versions were verified with Python 3.11.4 from an existing Anaconda base installation. On 2026-10-25, a real official stable-channel upgrade from 3.14.4 to 3.16.3 restored the loader automatically after normal exit, without manual reinstallation. The restored 3.16.3 UI also passed live verification; see the [verification table](docs/guide.md#verified-configurations). Linux is not supported; other client versions must pass compatibility checks.
 
 Download the source on either platform:
 

@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome in English or Chinese. Include operating system/version, architecture, ZCode version, extension version, expected behavior and reproduction steps. Use synthetic examples and redact private data before sharing logs or screenshots.
 
-Checked targets are macOS / Apple Silicon with ZCode 3.16.3 and Windows 11 x64 with official ZCode 3.14.4. Windows installation, recovery registration, live official-client statistics and a same-version simulated loader-overwrite recovery drill were verified with an existing Anaconda base Python 3.11.4. Distinguish fixture tests, preview tests, installed-client verification and recovery drills in reports; see the [verification table](docs/guide.md#verified-configurations) for the current evidence.
+Checked targets are macOS / Apple Silicon with ZCode 3.16.3 and Windows 11 x64 with official ZCode 3.14.4 and 3.16.3. Windows installation, recovery registration, live official-client statistics on both versions and a same-version simulated loader-overwrite recovery drill were verified with an existing Anaconda base Python 3.11.4. Distinguish fixture tests, preview tests, installed-client verification and recovery drills in reports; see the [verification table](docs/guide.md#verified-configurations) for the current evidence.
 
 ## Run checks
 
@@ -45,7 +45,7 @@ For every additional Windows target, record the Windows version/architecture, of
 
 The Windows deferred-recovery helper is a single temporary Python process with a 24-hour bound. Preserve executable-specific process detection, worker reuse, opt-out cancellation and fresh compatibility checks after normal app exit. Do not replace it with a scheduled task/service or force the app to close. Initial installation with a locked archive still requires a normal app exit and rerun.
 
-The completed Windows drill removed only the loader entry on the same official ZCode 3.14.4 version, then verified the helper survived its caller, waited for normal exit, repaired the entry, exited, and restored the real UI after relaunch. This is not evidence of an actual official version upgrade or future-version compatibility.
+The earlier simulated Windows drill removed only the loader entry on the same official ZCode 3.14.4 version, then verified the helper survived its caller, waited for normal exit, repaired the entry, exited, and restored the real UI after relaunch. Separately, on 2026-10-25 the native updater completed a real official stable-channel upgrade from 3.14.4 to 3.16.3. The native SessionStart hook queued recovery without manual setup or restoration commands; normal exit let the helper restore the loader and terminate. The post-relaunch 3.16.3 UI also passed live verification of the three cards, positioning, viewport bounds and footer spacing, recorded separately in the verification table. Neither result guarantees future-version compatibility.
 
 ZCode 3.14.4 uses a verified legacy composer profile without `data-composer-layout`. Its compatibility exception requires the exact version and scoped editor, surface, card and dock markers. Add evidence and regression coverage before introducing another profile; unknown legacy layouts must remain rejected.
 

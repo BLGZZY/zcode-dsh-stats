@@ -59,7 +59,7 @@
 
 ### 方式二：手动安装
 
-需要 **Python 3.11+**、Git 和已安装的官方 ZCode Desktop，无 pip 依赖。**已检查的目标：Apple Silicon 上的 macOS / ZCode 3.16.3，以及 Windows 11 x64 上的官方 ZCode 3.14.4。** Windows 已使用现有 Anaconda 基础安装中的 Python 3.11.4 验证安装与真实会话统计界面。暂不支持 Linux；其他客户端版本必须通过兼容检查。
+需要 **Python 3.11+**、Git 和已安装的官方 ZCode Desktop，无 pip 依赖。**已检查的目标：Apple Silicon 上的 macOS / ZCode 3.16.3，以及 Windows 11 x64 上的官方 ZCode 3.14.4 和 3.16.3。** Windows 已使用现有 Anaconda 基础安装中的 Python 3.11.4 验证安装与两个版本的真实会话统计界面。2026-10-25 已完成官方稳定通道 3.14.4 → 3.16.3 的真实升级，入口在正常退出后自动补回，无需手动重装。恢复后的 3.16.3 界面复验也已通过，详见[验证表](docs/guide.zh-CN.md#验证)。暂不支持 Linux；其他客户端版本必须通过兼容检查。
 
 两种平台均先下载源码：
 

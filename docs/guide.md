@@ -4,7 +4,7 @@
 
 ## Install and inspect
 
-Checked targets are **macOS / Apple Silicon with ZCode 3.16.3** and **Windows 11 x64 with official ZCode 3.14.4**. Windows was validated with an existing Anaconda base Python 3.11.4. Linux is not supported. Python 3.11+ is required on both target platforms; no pip dependencies.
+Checked targets are **macOS / Apple Silicon with ZCode 3.16.3** and **Windows 11 x64 with official ZCode 3.14.4 and 3.16.3**. Windows was validated with an existing Anaconda base Python 3.11.4. Linux is not supported. Python 3.11+ is required on both target platforms; no pip dependencies.
 
 On macOS, use `python3` or double-click `Install.command`. On Windows, open PowerShell in the downloaded directory and run:
 
@@ -46,18 +46,24 @@ If initial Windows setup reports a locked archive, wait for active tasks, fully 
 
 ## Verified configurations
 
-Windows verification used extension **0.4.0** in the installed official ZCode 3.14.4 client, with a custom app location and an existing Python outside PATH. Public examples use placeholder paths.
+Windows verification used extension **0.4.0** with official ZCode 3.14.4, followed by a real official stable-channel upgrade to 3.16.3 on **2026-10-25**, with a custom app location and an existing Python outside PATH. Public examples use placeholder paths.
 
 | Windows 11 x64 check | Result |
 | --- | --- |
 | `Install.ps1` with `-Asar` and `-PythonPath` | Installed successfully; automatic recovery enabled. |
-| Existing local session and collector | Live statistics visible; health reports data available. |
-| Activity, token and context cards | Real values, independent button anchors and viewport bounds verified. |
-| Footer spacing | 24px row and 2px dock bottom padding verified. |
+| ZCode 3.14.4 existing local session and collector | Live statistics visible; health reports data available. |
+| ZCode 3.14.4 activity, token and context cards | Real values, independent button anchors and viewport bounds verified. |
+| ZCode 3.14.4 footer spacing | 24px row and 2px dock bottom padding verified. |
 | Same-version simulated loader overwrite | Passed: deferred while the official app ran; repaired after normal exit; helper exited; live UI restored after relaunch. |
+| Official stable upgrade 3.14.4 → 3.16.3 (2026-10-25) | Passed: native update replaced the archive; native SessionStart queued recovery; normal exit allowed automatic repair and helper termination, without manual reinstallation. |
+| ZCode 3.16.3 UI after recovery and relaunch | Passed: restored 0.4.0 component, live data in all three cards, independent anchors and viewport bounds, 24px footer and 2px bottom padding; repair complete and helper exited. |
 | Windows automated tests | 124-test Python suite passed with one POSIX-only skip; 6 Node tests passed. |
 
-The recovery drill removed only this component's loader entry on the same official ZCode 3.14.4 version. It verified `deferred-until-exit`, helper survival after the calling terminal ended, reuse on repeated checks, repair after all matching app processes exited, helper termination and the restored 0.4.0 UI after relaunch. It was not an actual official version upgrade and does not establish future-version compatibility. The macOS 124-test Python suite also passed, with one Windows-native-API skip.
+The earlier simulated drill removed only this component's loader entry on the same official ZCode 3.14.4 version. It verified `deferred-until-exit`, helper survival after the calling terminal ended, reuse on repeated checks, repair after all matching app processes exited, helper termination and the restored 0.4.0 UI after relaunch.
+
+A separate real-upgrade verification then used the client's native updater and an officially signed stable-channel package on 2026-10-25. After the new version replaced the archive, opening an existing session automatically triggered SessionStart recovery. No setup or restoration command was run manually. The helper restored the loader after normal app exit and terminated; the entry takes effect on the next launch. Live verification after relaunch also passed in official ZCode 3.16.3: the 0.4.0 component displayed all three cards with correct positioning and spacing, and the recovery helper had exited. Future versions still require compatibility checks.
+
+The macOS 124-test Python suite also passed, with one Windows-native-API skip.
 
 ZCode 3.14.4 predates `data-composer-layout`. Its verified legacy profile requires that exact version plus the scoped editor, surface, card and dock markers. Unknown legacy versions/layouts remain rejected; other versions still need the normal compatibility checks.
 
