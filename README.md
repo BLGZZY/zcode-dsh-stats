@@ -1,31 +1,39 @@
+<div align="center">
+
 # ZCode DSH Stats
 
-A compact token usage bar for official ZCode Desktop, with automatic restoration after updates.
+**A 24px stats row right beneath your input: turns, decode speed, tokens, cache hits, context usage.**
+The compact-statistics experience of DeepSeek Harness (DSH) for the official ZCode Desktop — no source build, and automatic restoration after client updates.
 
-**English** · [简体中文](README.zh-CN.md)
+[![CI](https://github.com/BLGZZY/zcode-dsh-stats/actions/workflows/checks.yml/badge.svg)](https://github.com/BLGZZY/zcode-dsh-stats/actions/workflows/checks.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![ZCode](https://img.shields.io/badge/ZCode%20verified-3.14.4%20%7C%203.16.3-blue)
 
-**Contents:** [Features](#at-a-glance) · [Quick Start](#quick-start) · [Client updates](#after-zcode-updates) · [Update/remove](#update-or-remove-this-extension) · [Privacy](#data-and-privacy) · [Docs](#documentation-and-contributing) · [License](#credits-and-license)
+<img src="docs/assets/demo.gif" alt="Demo of the stats row: numbers accumulate as the conversation grows, then the session performance, token usage and context capacity cards pop open. Demo data." width="800">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
-  <img src="docs/assets/showcase-light.png" alt="DSH Stats beneath the ZCode input card: turns, requests, decode speed, tokens, cache hits and context usage. Demo data.">
-</picture>
+*Demo data. Once installed, the row reads your current session's local usage records; the animation is rendered deterministically from [docs/record-demo.html](docs/record-demo.html) and can be regenerated at any time.*
 
-**Know what each conversation costs in tokens—without leaving the input box.** Inspired by DeepSeek Harness's compact statistics, this extension adds a centered row beneath the official ZCode composer. No ZCode source build required.
+简体中文 · [English](README.md)
 
-## At a glance
+[✨ At a glance](#-at-a-glance) · [⚡ Install](#-install) · [⚙ How it works](#-how-it-works) · [🔄 After updates](#-after-zcode-updates) · [🛡 Privacy](#-data-and-privacy) · [📚 Full guide](docs/guide.md)
+
+</div>
+
+## ✨ At a glance
 
 | See | Understand |
 | --- | --- |
-| **6 turns · 58 steps · 204 tok/s** | Completed conversation turns, main requests and average decode speed. |
-| **5.2M tok · 83% cache hits** | Cumulative token usage and the input's cache-hit ratio. |
-| **16% context** | Native context usage for the active conversation. |
-| **Click any metric** | Open separate timing, token breakdown and context-capacity cards. |
+| **6 turns · 58 steps · 204 tok/s** | Completed conversation turns, main requests and average decode speed |
+| **5.2M tok · 83% cache hits** | Cumulative token usage and the input's cache-hit ratio |
+| **16% context** | Native context usage for the active conversation |
+| **Click any metric** | Pop open the session / token / context cards |
 
-The row is **24px high**, adapts to narrow panes, follows light/dark mode and keeps each split pane's statistics separate. Illustrations use **demo data**; installed statistics come from local session records. Speed updates after requests complete, not token by token.
+The row is **24px high**: it adapts to narrow panes, follows light/dark mode, and keeps each split pane's statistics separate. Speed updates after requests complete, not token by token.
 
 <details>
-<summary><strong>See the three detail cards</strong></summary>
+<summary><b>🔍 The three detail cards</b></summary>
 
 **Session performance** — model/tool time, average TTFT and decode speed.
 
@@ -41,11 +49,30 @@ The row is **24px high**, adapts to narrow panes, follows light/dark mode and ke
 
 </details>
 
-## Quick Start
+<details>
+<summary><b>🖼 Static screenshots (light / dark)</b></summary>
 
-### Option 1: Ask your agent to install it
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
+  <img src="docs/assets/showcase-light.png" alt="DSH Stats beneath the ZCode input card. Demo data.">
+</picture>
 
-Copy this into an agent that can operate the terminal on your Windows PC or Mac:
+</details>
+
+## ⚡ Install
+
+> [!IMPORTANT]
+> This is an unofficial, experimental extension. Setup **backs up first**, then adds a loader entry to the installed client's `app.asar`. It uses no official composer extension API and never rebuilds ZCode.
+
+| | |
+| --- | --- |
+| **Platforms** | macOS (Apple Silicon) · Windows 11 x64 · Linux is not supported |
+| **Client** | Official ZCode Desktop, verified on **3.14.4 / 3.16.3**; other versions must pass the compatibility checks |
+| **Requirements** | Python 3.11+ and Git, no pip dependencies |
+
+### Option 1: Ask your agent to install it (recommended)
+
+Paste this into an agent that can operate the terminal on your Windows PC or Mac (a web-only chat or remote sandbox cannot write to your machine):
 
 ```text
 Install ZCode DSH Stats on this Windows PC or Mac and enable automatic restoration after official ZCode updates.
@@ -55,80 +82,99 @@ Do not build ZCode Dev or force-quit a running ZCode. If system permissions or c
 Report whether installation and automatic recovery succeeded, and whether I still need to restart ZCode.
 ```
 
-Requires an agent with local terminal access. A web-only chat or remote sandbox cannot install into your local computer. [Read the agent installation guide](INSTALL_FOR_AGENTS.md).
+You can also read the [agent installation guide](INSTALL_FOR_AGENTS.md) first.
 
 ### Option 2: Install manually
-
-Requires **Python 3.11+**, Git, and an installed official ZCode Desktop. No pip dependencies. **Checked targets: macOS / Apple Silicon with ZCode 3.16.3, and Windows 11 x64 with official ZCode 3.14.4 and 3.16.3.** Windows installation and the live statistics UI on both versions were verified with Python 3.11.4 from an existing Anaconda base installation. On 2026-10-25, a real official stable-channel upgrade from 3.14.4 to 3.16.3 restored the loader automatically after normal exit, without manual reinstallation. The restored 3.16.3 UI also passed live verification; see the [verification table](docs/guide.md#verified-configurations). Linux is not supported; other client versions must pass compatibility checks.
-
-Download the source on either platform:
 
 ```sh
 git clone https://github.com/BLGZZY/zcode-dsh-stats.git
 cd zcode-dsh-stats
 ```
 
-**macOS** — Terminal:
+**macOS** (Terminal, or double-click `Install.command` in the downloaded folder):
 
 ```sh
 python3 setup_auto.py enable
 python3 setup_auto.py status
 ```
 
-**Windows** — PowerShell:
+**Windows** (PowerShell):
 
 ```powershell
 .\Install.ps1
 ```
 
-The Windows launcher finds an installed Python 3.11+ and retains its absolute executable path. If Python is already installed outside PATH, pass `-PythonPath 'C:\path\to\python.exe'` (using your actual path); no environment activation or duplicate installation is needed. The installer discovers official ZCode; for a custom location, use `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`. If PowerShell blocks scripts, use `py -3 setup_auto.py enable` after confirming `py -3 --version` is 3.11+; no execution-policy change is needed. See [platform setup](docs/guide.md#install-and-inspect).
+Successful setup reports `auto-restore-enabled`. After background tasks finish, **fully quit and reopen ZCode**, then open an existing local conversation — the row appears beneath the input card. A new draft has no statistics yet.
 
-If Windows reports that the app archive is in use during initial installation, let active tasks finish, fully quit ZCode normally, then rerun setup. The installer does not close the app for you.
+<details>
+<summary><b>🪟 Windows notes: Python path, execution policy, file in use</b></summary>
 
-Successful setup reports `auto-restore-enabled`. After background tasks finish, **fully quit and reopen ZCode**, then open an existing local conversation. The row appears beneath the input card. A new draft has no statistics row yet.
+- The installer discovers an installed Python 3.11+ and retains its absolute executable path. If Python is outside PATH, pass `-PythonPath 'C:\path\to\python.exe'` (your actual path); no environment activation or duplicate installation is needed.
+- Custom ZCode location: `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`.
+- If PowerShell blocks scripts, confirm `py -3 --version` is 3.11+ and run `py -3 setup_auto.py enable` directly; no execution-policy change is needed.
+- If Windows reports the app archive is in use during initial installation, let active tasks finish, fully quit ZCode normally, then rerun setup. The installer does not close the app for you.
 
-On macOS, you can also double-click `Install.command` in the downloaded folder. If macOS reports `Operation not permitted`, see [troubleshooting](docs/guide.md#troubleshooting).
+See [platform setup](docs/guide.md#install-and-inspect).
+</details>
 
-> [!NOTE]
-> This is an unofficial, experimental extension. It adds a loader to the installed application's `app.asar`, with a verified backup. It does not use an official composer extension API or rebuild ZCode. Future client changes may need an adaptation.
+## ⚙ How it works
 
-## After ZCode updates
-
-The installed local plugin checks its loader when a session starts or resumes. If an update replaced it, the plugin checks compatibility, backs up the new archive and restores the loader. On Windows, a running app can lock the archive: recovery then starts one temporary background helper, which waits up to 24 hours for that official app to exit normally before checking and restoring the loader. Disabling recovery or removing the component cancels the pending repair. **The restored component takes effect on the next app start.** No forced exit, scheduled task or service is used.
-
-Permission errors or incompatible client changes pause restoration. See [update recovery](docs/guide.md#update-recovery). This restores the component; it does not update ZCode or download new extension versions.
-
-## Update or remove this extension
-
-**macOS:**
-
-```sh
-# Update the component and its installed recovery copy
-git pull --ff-only
-python3 setup_auto.py enable
-
-# Or remove the component and disable automatic restoration
-python3 install.py remove
+```mermaid
+flowchart LR
+    A[("Local usage database (read-only)")] --> B["Stats row · 24px"]
+    B -->|Click any metric| C["Session / Token / Context cards"]
+    D["Official client update overwrites the loader"] --> E["Next session start:<br>compatibility check → backup → restore"]
+    E --> B
 ```
 
-**Windows** — update with `git pull --ff-only` followed by `.\Install.ps1`; remove with `.\Remove.ps1`. Pass the same `-Asar` for a custom installation. The Python equivalents are `py -3 setup_auto.py enable` and `py -3 install.py remove`.
+- The collector opens the local usage database **read-only** and selects numeric usage for the exact current session. It never reads prompts, touches API keys, sends telemetry or makes model requests.
+- Installation writes exactly three things: the loader entry inside `app.asar` (with a verified backup), the extension's own files and backups, and a user-level local plugin registration.
 
-Fully quit and reopen ZCode after either change. To stop restoration while keeping the row, use `python3 setup_auto.py disable` (macOS) or `py -3 setup_auto.py disable` (Windows).
+## 🔄 After ZCode updates
 
-## Data and privacy
+An installed local plugin guards the row: when a session starts or resumes it checks the loader, and if an update replaced it, the plugin verifies compatibility, backs up the new archive and restores the entry — **effective on the next app start**. No forced exit, scheduled task or service is used. On Windows a running app can lock the archive; restoration is then deferred until that app exits normally (waiting up to 24 hours).
 
-The collector opens the local usage database **read-only** and selects numeric usage for the exact current session. It does not read prompts, access API keys, send telemetry or make model requests. Only completed main requests are counted. Local retention, missing timing samples and legacy cache accounting affect totals; see [metric definitions](docs/guide.md#metrics).
+<details>
+<summary><b>❓ When is restoration paused? How do I check the state?</b></summary>
 
-Installation writes the app loader, the extension's own files/backups and a user-level local plugin registration. Recovery contributes a short maintenance notice to the current session when a repair succeeds, fails or is deferred until app exit.
+- Permission errors or incompatible client changes pause restoration; see [update recovery](docs/guide.md#update-recovery).
+- It restores this component only: it does not update ZCode or download new extension versions. Disabling recovery or removing the component cancels a pending repair.
+- On Windows, `deferred-until-exit` in the status file means waiting, not repaired.
+</details>
 
-## Documentation and contributing
+## 🧩 Update or remove
 
-- [User guide and troubleshooting](docs/guide.md) · [中文完整指南](docs/guide.zh-CN.md)
-- [Development, tests and contributions](CONTRIBUTING.md)
-- [Implementation contract](spec.json)
+| Action | macOS | Windows |
+| --- | --- | --- |
+| Update | `git pull --ff-only` + `python3 setup_auto.py enable` | `git pull --ff-only` + `.\Install.ps1` |
+| Remove | `python3 install.py remove` (or double-click `Remove.command`) | `.\Remove.ps1` |
+| Recovery only | `python3 setup_auto.py disable` | `py -3 setup_auto.py disable` |
 
-## Credits and license
+Pass the same `-Asar` / `--asar` for a custom installation. Fully quit and reopen ZCode after any change.
 
-The loading approach and ASAR format handling are based on [xhwxt/zcode-token-usage-statusbar](https://github.com/xhwxt/zcode-token-usage-statusbar). Its [MIT notice](vendor/LICENSE) is retained. The interface is inspired by DeepSeek Harness; its product runtime is not bundled. This project is not affiliated with ZCode.
+## 📋 Verified environments
 
-[MIT](LICENSE) © 2026 ZCode DSH Stats contributors.
+| Environment | Install | Live stats UI | Update recovery |
+| --- | :-: | :-: | :-: |
+| macOS (Apple Silicon) · ZCode 3.16.3 | ✅ | ✅ | — |
+| Windows 11 x64 · ZCode 3.14.4 | ✅ | ✅ | ✅ same-version drill |
+| Windows 11 x64 · ZCode 3.16.3 | ✅ | ✅ | ✅ real 3.14.4 → 3.16.3 upgrade |
+
+Windows verification used Python 3.11.4 from an existing Anaconda base installation. On 2026-10-25 a real official stable-channel upgrade completed, and the loader was restored automatically after normal app exit. See the [verification table](docs/guide.md#verified-configurations).
+
+## 🛡 Data and privacy
+
+- The usage database is opened **read-only**, selecting numeric usage for the exact current session; no prompts, API keys, telemetry or model requests.
+- Only completed main requests are counted. Local retention, missing timing samples and legacy cache accounting affect totals; see [metric definitions](docs/guide.md#metrics).
+- Recovery contributes a short maintenance notice to the current session when a repair succeeds, fails or is deferred until app exit.
+
+## 📚 Docs and contributing
+
+- [User guide](docs/guide.md) · [中文完整指南](docs/guide.zh-CN.md) · [Development, tests and contributions](CONTRIBUTING.md) · [Implementation contract](spec.json)
+- Found a problem? Please [open an issue](https://github.com/BLGZZY/zcode-dsh-stats/issues).
+
+## 🙏 Credits and license
+
+The loading approach and ASAR format handling are based on [xhwxt/zcode-token-usage-statusbar](https://github.com/xhwxt/zcode-token-usage-statusbar); its [MIT notice](vendor/LICENSE) is retained. The interface is inspired by DeepSeek Harness; its product runtime is not bundled. This project is not affiliated with ZCode.
+
+[MIT](LICENSE) © 2026 ZCode DSH Stats contributors

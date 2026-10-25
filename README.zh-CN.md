@@ -1,134 +1,180 @@
+<div align="center">
+
 # ZCode DSH Stats
 
-给官方 ZCode Desktop 添加紧凑的 token 统计条，并在客户端更新后自动恢复。
+**输入框正下方的一行 24px 统计条:轮数、速度、token、缓存命中、上下文占用。**
+参考 DeepSeek Harness(DSH)的紧凑统计体验,为官方 ZCode Desktop 而来,无需自行编译;客户端更新后自动恢复。
 
-[English](README.md) · **简体中文**
+[![CI](https://github.com/BLGZZY/zcode-dsh-stats/actions/workflows/checks.yml/badge.svg)](https://github.com/BLGZZY/zcode-dsh-stats/actions/workflows/checks.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![ZCode](https://img.shields.io/badge/ZCode%20verified-3.14.4%20%7C%203.16.3-blue)
 
-**目录：** [功能](#一眼看清什么) · [Quick Start](#quick-start) · [客户端更新](#zcode-更新后怎么办) · [升级与卸载](#升级或卸载本组件) · [隐私](#数据与隐私) · [文档](#文档与贡献) · [许可](#致谢与许可)
+<img src="docs/assets/demo.gif" alt="统计条演示:数字随对话累积跳动,依次弹出会话性能、Token 用量、上下文容量三张卡片。演示数据。" width="800">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
-  <img src="docs/assets/showcase-light.png" alt="ZCode 输入框下方的 DSH 统计条：轮数、步数、速度、token、缓存命中率和上下文占用。图中使用演示数据。">
-</picture>
+*演示数据。安装后读取你当前会话的本地用量记录;截图由 [docs/record-demo.html](docs/record-demo.html) 确定性渲染,可随时重新生成。*
 
-**不用离开输入框，就能看清这段对话用了多少 token。** 参考 DeepSeek Harness 的紧凑统计体验，在官方 ZCode 输入框外侧下方加一行统计，无需自行编译 ZCode。
+[English](README.md) · 简体中文
 
-## 一眼看清什么
+[✨ 一眼看清](#-一眼看清) · [⚡ 安装](#-安装) · [⚙ 工作原理](#-工作原理) · [🔄 更新后](#-zcode-更新后) · [🛡 隐私](#-数据与隐私) · [📚 完整指南](docs/guide.zh-CN.md)
 
-| 展示 | 含义 |
+</div>
+
+## ✨ 一眼看清
+
+| 看到 | 含义 |
 | --- | --- |
-| **6 轮 · 58 步 · 204 tok/s** | 已完成的对话轮数、主请求数和平均解码速度。 |
-| **5.2M tok · 缓存命中 83%** | 当前保留记录的累计 token，以及输入的缓存命中比例。 |
-| **16% 上下文** | 当前会话的原生上下文占用。 |
-| **点开任意统计项** | 分别展开会话性能、Token 明细和上下文容量卡片。 |
+| **6 轮 · 58 步 · 204 tok/s** | 已完成的对话轮数、主请求数和平均输出速度 |
+| **5.2M tok · 缓存命中 83%** | 累计 token 用量,以及输入的缓存命中比例 |
+| **16% 上下文** | 当前会话的原生上下文占用 |
+| **点击任意统计项** | 弹出会话性能 / Token 用量 / 上下文容量卡片 |
 
-统计行只有 **24px 高**，窄窗口自动精简，适配明暗主题，分屏会话各自统计。展示图使用**演示数据**；安装后读取你当前会话的本地记录。速度在请求完成后更新，并非逐 token 的流式瞬时速度。
+统计行只有 **24px 高**:窄窗口自动精简、适配明暗主题、分屏会话各自统计。速度在请求完成后更新,并非逐 token 的瞬时值。
 
 <details>
-<summary><strong>展开看看三张详情卡片</strong></summary>
+<summary><b>🔍 三张详情卡片</b></summary>
 
-**会话性能**：模型/工具用时、平均首 token 延迟和输出速度。
+**会话性能** — 模型/工具用时、平均首 token 延迟、输出速度。
 
-![会话统计卡片，演示数据](docs/assets/card-activity.png)
+![会话统计卡片,演示数据](docs/assets/card-activity.png)
 
-**Token 用量**：缓存命中、未缓存输入、缓存读取和输出。
+**Token 用量** — 缓存命中、未缓存输入、缓存读取和输出。
 
-![Token 用量明细卡片，演示数据](docs/assets/card-tokens.png)
+![Token 用量明细卡片,演示数据](docs/assets/card-tokens.png)
 
-**上下文容量**：原生已用量、剩余空间和进度条。ZCode 暂未提供系统/工具/消息的分项 token。
+**上下文容量** — 原生已用量、剩余空间和进度条。ZCode 暂未提供分项 token 计数。
 
-![上下文占用卡片，演示数据](docs/assets/card-context.png)
+![上下文占用卡片,演示数据](docs/assets/card-context.png)
 
 </details>
 
-## Quick Start
+<details>
+<summary><b>🖼 静态截图(明 / 暗)</b></summary>
 
-### 方式一：交给 Agent 安装（推荐）
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/showcase-dark.png">
+  <img src="docs/assets/showcase-light.png" alt="ZCode 输入框下方的 DSH 统计条。演示数据。">
+</picture>
 
-把下面这段话复制给能操作你本机终端的 agent：
+</details>
+
+## ⚡ 安装
+
+> [!IMPORTANT]
+> 非官方、实验性扩展。安装会**先备份**,再向已安装客户端的 `app.asar` 添加加载入口;不依赖官方输入框插件 API,也不会重新编译 ZCode。
+
+| | |
+| --- | --- |
+| **平台** | macOS(Apple Silicon)· Windows 11 x64 · 暂不支持 Linux |
+| **客户端** | 官方 ZCode Desktop,已实测 **3.14.4 / 3.16.3**;其他版本必须通过兼容检查 |
+| **依赖** | Python 3.11+ 与 Git,无 pip 依赖 |
+
+### 方式一:交给 Agent 安装(推荐)
+
+把这段话复制给能操作你本机终端的 agent(网页聊天或远程沙箱无法写入本机):
 
 ```text
-请在我这台 Windows 或 Mac 电脑上安装 ZCode DSH Stats，并启用官方 ZCode 更新后的自动恢复。
-先读取并遵循安装指南：https://raw.githubusercontent.com/BLGZZY/zcode-dsh-stats/main/INSTALL_FOR_AGENTS.md
-请直接完成环境检查、获取代码、安装和结果验证；必要时可通过已有 Homebrew（macOS）或 winget（Windows）安装官方 Python 包，不要静默安装包管理器。
-不要构建 ZCode Dev，不要强退正在运行的 ZCode。若被系统权限或兼容性检查阻止，请说明实际原因和我需要做的一步操作。
-最后告诉我是否安装成功、自动恢复是否启用，以及是否还需要重启 ZCode。
+请在我这台 Windows 或 Mac 电脑上安装 ZCode DSH Stats,并启用官方 ZCode 更新后的自动恢复。
+先读取并遵循安装指南:https://raw.githubusercontent.com/BLGZZY/zcode-dsh-stats/main/INSTALL_FOR_AGENTS.md
+请直接完成环境检查、获取代码、安装和结果验证;必要时可通过已有 Homebrew(macOS)或 winget(Windows)安装官方 Python 包,不要静默安装包管理器。
+不要构建 ZCode Dev,不要强退正在运行的 ZCode。若被系统权限或兼容性检查阻止,请说明实际原因和我需要做的一步操作。
+最后告诉我是否安装成功、自动恢复是否启用,以及是否还需要重启 ZCode。
 ```
 
-支持具备本机终端权限的 agent；普通网页聊天或远程沙箱无法直接安装到你的本机。[查看 Agent 安装指南](INSTALL_FOR_AGENTS.md)。
+也可以先阅读 [Agent 安装指南](INSTALL_FOR_AGENTS.md)再决定。
 
-### 方式二：手动安装
-
-需要 **Python 3.11+**、Git 和已安装的官方 ZCode Desktop，无 pip 依赖。**已检查的目标：Apple Silicon 上的 macOS / ZCode 3.16.3，以及 Windows 11 x64 上的官方 ZCode 3.14.4 和 3.16.3。** Windows 已使用现有 Anaconda 基础安装中的 Python 3.11.4 验证安装与两个版本的真实会话统计界面。2026-10-25 已完成官方稳定通道 3.14.4 → 3.16.3 的真实升级，入口在正常退出后自动补回，无需手动重装。恢复后的 3.16.3 界面复验也已通过，详见[验证表](docs/guide.zh-CN.md#验证)。暂不支持 Linux；其他客户端版本必须通过兼容检查。
-
-两种平台均先下载源码：
+### 方式二:手动安装
 
 ```sh
 git clone https://github.com/BLGZZY/zcode-dsh-stats.git
 cd zcode-dsh-stats
 ```
 
-**macOS**：在终端执行：
+**macOS**(终端,或双击下载目录里的 `Install.command`):
 
 ```sh
 python3 setup_auto.py enable
 python3 setup_auto.py status
 ```
 
-**Windows**：在 PowerShell 执行：
+**Windows**(PowerShell):
 
 ```powershell
 .\Install.ps1
 ```
 
-Windows 脚本会寻找已安装的 Python 3.11+，保留其绝对路径供后续自动恢复使用。已有 Python 不在 PATH 时，可传 `-PythonPath 'C:\path\to\python.exe'`（替换成实际路径），无需激活环境或重复安装。安装器自动发现官方 ZCode；自定义路径可用 `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`。如果 PowerShell 阻止脚本运行，确认 `py -3 --version` 为 3.11+ 后，直接运行 `py -3 setup_auto.py enable`，无需修改执行策略。详见[平台安装说明](docs/guide.zh-CN.md#安装与卸载)。
+安装成功会显示 `auto-restore-enabled`。等后台任务结束后**完全退出并重新打开 ZCode**,进入一个已有的本地会话,输入框下方就是统计行;新草稿暂无统计。
 
-Windows 首次安装若提示应用文件被占用，先完成当前任务，正常完全退出 ZCode，再重跑安装。安装器不会替你关闭应用。
+<details>
+<summary><b>🪟 Windows 补充:Python 路径、执行策略、文件占用</b></summary>
 
-安装成功会显示 `auto-restore-enabled`。等后台任务结束后，**完全退出并重新打开 ZCode**，进入一个已有的本地会话，输入框下方就会出现统计条。尚未创建会话的新草稿不显示统计。
+- 安装器自动寻找已装的 Python 3.11+ 并保留其绝对路径;Python 不在 PATH 时传 `-PythonPath 'C:\path\to\python.exe'`(替换为实际路径),无需激活环境或重复安装。
+- 自定义 ZCode 位置: `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`。
+- PowerShell 阻止脚本时,确认 `py -3 --version` 为 3.11+ 后直接运行 `py -3 setup_auto.py enable`,无需修改执行策略。
+- 首次安装若提示应用文件被占用:先完成当前任务,正常完全退出 ZCode 再重跑;安装器不会替你关闭应用。
 
-macOS 也可双击下载目录里的 `Install.command`。遇到 macOS 的 `Operation not permitted`，请看[完整指南](docs/guide.zh-CN.md#安装与卸载)。
+详见[平台安装说明](docs/guide.zh-CN.md#安装与卸载)。
+</details>
 
-> [!NOTE]
-> 这是非官方、实验性的扩展，会先备份，再向已安装应用的 `app.asar` 添加加载入口。它不依赖官方输入框插件 API，也不会重新编译 ZCode。未来客户端结构变化时可能需要适配。
+## ⚙ 工作原理
 
-## ZCode 更新后怎么办
-
-本地插件会在新建或恢复会话时检查加载入口。若官方更新覆盖了入口，它会检查兼容性、备份新版本并补回入口。Windows 运行中的应用可能锁定文件，此时会启动一个临时后台助手，最多等待 24 小时，等对应官方应用正常退出后重新检查并修复，**下次启动 ZCode 后生效**。禁用恢复或卸载组件会取消待执行修复；不会强退应用，也不创建计划任务或服务。
-
-权限不足或新版结构不兼容时会暂停恢复，详情见[自动恢复说明](docs/guide.zh-CN.md#官方更新后自动恢复)。它负责恢复本组件，不负责升级 ZCode，也不会联网下载本扩展的新版本。
-
-## 升级或卸载本组件
-
-**macOS：**
-
-```sh
-# 更新组件及已安装的自动恢复副本
-git pull --ff-only
-python3 setup_auto.py enable
-
-# 或卸载组件，同时禁用自动恢复
-python3 install.py remove
+```mermaid
+flowchart LR
+    A[("本地用量数据库(只读)")] --> B["统计行 · 24px"]
+    B -->|点击任意统计项| C["会话性能 / Token 用量 / 上下文容量"]
+    D["官方客户端更新覆盖入口"] --> E["下次会话启动:<br>兼容检查 → 备份 → 补回"]
+    E --> B
 ```
 
-**Windows：**更新时运行 `git pull --ff-only`，然后 `.\Install.ps1`；卸载运行 `.\Remove.ps1`。自定义安装继续传同一个 `-Asar`。对应 Python 命令为 `py -3 setup_auto.py enable` 和 `py -3 install.py remove`。
+- 采集器**只读**打开本地用量数据库,按当前会话 ID 查询数字统计;不读提示词、不访问 API key、不上传遥测、不额外调用模型。
+- 安装只写入三处:`app.asar` 中的加载入口(有备份)、组件自身文件与备份、用户级本地插件注册。
 
-修改后完全退出并重开 ZCode。只想关闭自动恢复、保留统计条，macOS 可执行 `python3 setup_auto.py disable`，Windows 执行 `py -3 setup_auto.py disable`。
+## 🔄 ZCode 更新后
 
-## 数据与隐私
+统计由已安装的本地插件守护:新建或恢复会话时检查入口,若被官方更新覆盖,自动做兼容检查、备份新档并补回,**下次启动生效**。不强退应用,不创建计划任务或服务。Windows 下运行中的应用可能锁定文件,恢复会延后到应用正常退出后执行(最多等待 24 小时)。
 
-采集器**只读**本地用量数据库，按当前会话 ID 查询数字统计。不读取提示词、不访问 API key、不上传遥测，也不额外调用模型。只统计已完成的主请求；记录保留期、缺失的计时和历史缓存口径会影响数字，详见[数据与显示](docs/guide.zh-CN.md#数据与显示)。
+<details>
+<summary><b>❓ 何时暂停恢复?如何确认状态?</b></summary>
 
-安装会写入应用加载入口、组件自身文件和备份，并注册用户级本地插件。自动恢复在修复成功、失败或延后至应用退出时向当前会话提供一条简短维护状态。
+- 权限不足或新版结构不兼容时暂停恢复,详见[自动恢复说明](docs/guide.zh-CN.md#官方更新后自动恢复)。
+- 它只恢复本组件:不升级 ZCode、不联网下载新版本;禁用恢复或卸载组件会取消待执行修复。
+- Windows 状态文件显示 `deferred-until-exit` 时,表示等待中而非已修复。
+</details>
 
-## 文档与贡献
+## 🧩 升级与卸载
 
-- [中文完整指南](docs/guide.zh-CN.md) · [English guide](docs/guide.md)
-- [开发、测试与贡献](CONTRIBUTING.md)
-- [实现约定](spec.json)
+| 操作 | macOS | Windows |
+| --- | --- | --- |
+| 更新组件 | `git pull --ff-only` + `python3 setup_auto.py enable` | `git pull --ff-only` + `.\Install.ps1` |
+| 卸载组件 | `python3 install.py remove`(或双击 `Remove.command`) | `.\Remove.ps1` |
+| 只关自动恢复 | `python3 setup_auto.py disable` | `py -3 setup_auto.py disable` |
 
-## 致谢与许可
+自定义安装路径请传同一个 `-Asar` / `--asar`。任何改动后,完全退出并重开 ZCode 生效。
 
-接入方式和 ASAR 格式处理参考 [xhwxt/zcode-token-usage-statusbar](https://github.com/xhwxt/zcode-token-usage-statusbar)，保留其 [MIT 许可声明](vendor/LICENSE)。界面参考 DeepSeek Harness，未打包其产品运行时。本项目与 ZCode 官方无隶属关系。
+## 📋 已验证环境
 
-[MIT](LICENSE) © 2026 ZCode DSH Stats contributors.
+| 环境 | 安装 | 实时统计 UI | 更新自动恢复 |
+| --- | :-: | :-: | :-: |
+| macOS(Apple Silicon)· ZCode 3.16.3 | ✅ | ✅ | — |
+| Windows 11 x64 · ZCode 3.14.4 | ✅ | ✅ | ✅ 同版本演练 |
+| Windows 11 x64 · ZCode 3.16.3 | ✅ | ✅ | ✅ 真实升级 3.14.4 → 3.16.3 |
+
+Windows 验证使用现有 Anaconda 基础安装中的 Python 3.11.4;2026-10-25 完成官方稳定通道真实升级,应用正常退出后入口自动补回。详见[验证表](docs/guide.zh-CN.md#验证)。
+
+## 🛡 数据与隐私
+
+- 用量数据库**只读**打开,仅按当前会话 ID 查询数字;不读提示词、不访问 API key、不发遥测、不调用模型。
+- 只统计已完成的主请求;记录保留期、缺失计时和历史缓存口径会影响数字,见[指标口径](docs/guide.zh-CN.md#数据与显示)。
+- 自动恢复在修复成功、失败或延后至应用退出时,向当前会话提供一条简短维护状态。
+
+## 📚 文档与贡献
+
+- [中文完整指南](docs/guide.zh-CN.md) · [English guide](docs/guide.md) · [开发、测试与贡献](CONTRIBUTING.md) · [实现约定](spec.json)
+- 遇到问题?欢迎提一个 [issue](https://github.com/BLGZZY/zcode-dsh-stats/issues)。
+
+## 🙏 致谢与许可
+
+接入方式和 ASAR 格式处理参考 [xhwxt/zcode-token-usage-statusbar](https://github.com/xhwxt/zcode-token-usage-statusbar),保留其 [MIT 许可声明](vendor/LICENSE)。界面参考 DeepSeek Harness,未打包其产品运行时。本项目与 ZCode 官方无隶属关系。
+
+[MIT](LICENSE) © 2026 ZCode DSH Stats contributors

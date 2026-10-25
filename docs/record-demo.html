@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZCode DSH Stats — GIF recording page</title><link rel="icon" href="data:,">
+<!-- Deterministic demo renderer for docs/assets/demo.gif.
+     One frame = one page load with ?t=<milliseconds 0..10000>; every value is a pure
+     function of t, so headless screenshots can be re-run at any time:
+       chrome --headless=new --screenshot=f.png --window-size=900,560 '…/record-demo.html?t=4500'
+-->
+<style>
+*{box-sizing:border-box}html{color-scheme:light;--color-foreground:#24272d;--color-foreground-subtle:#656a74;--color-background:#fff;--color-surface-hover:#e9ebee;--color-border:#dce0e6;background:#f5f6f8;color:var(--color-foreground);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{margin:0;padding:20px}.window{border:1px solid #d9dde4;border-radius:16px;background:#fafbfd;box-shadow:0 12px 35px #18234009;overflow:hidden}.titlebar{height:38px;display:flex;align-items:center;gap:6px;padding:0 16px;border-bottom:1px solid #e8eaef}.dot{width:7px;height:7px;background:#c9ced7;border-radius:100%}.app-title{margin-left:8px;color:#777e89;font-size:11px}.conversation{padding:14px 20px 8px}.answer{margin:0 0 12px;color:#6a7180;font-size:13px}.answer strong{color:var(--color-foreground);font-weight:500}.chat-composer-input-surface{width:100%}.composer{position:relative;display:flex;flex-direction:column;gap:12px;border:1px solid #d9dde4;border-radius:14px;background:#fff;padding:14px;overflow:hidden}textarea{font:14px/1.5 inherit;font-family:inherit;color:inherit;resize:none;border:0;outline:none;background:transparent;width:100%;height:45px;display:block}textarea::placeholder{color:#9b9faa}.tools{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#707783}.tools span{display:flex;gap:13px;align-items:center}.tools .plus{font-size:22px;font-weight:300}.send{display:flex;align-items:center;justify-content:center;border:0;width:26px;height:26px;border-radius:8px;background:#636b77;color:white;font-size:18px}.pb-4{padding-bottom:16px}
+</style>
+<div class="window" data-session-id="demo"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="app-title">ZCode · Session preview</span></div><div class="conversation"><p class="answer"><strong>Refactor the parser and add tests.</strong> Done — 14 cases pass. Streaming replies stay responsive while usage stays in view.</p><div data-v4-composer-dock-content class="pb-4"><div class="chat-composer-input-surface"><form><div class="composer" data-composer-layout="stacked"><textarea placeholder="Ask for the next change…" aria-label="Message"></textarea><div class="tools"><span><span class="plus">＋</span>Full access⌄</span><span>GLM-5.3 <button class="send" type="button" aria-label="Send">↑</button></span></div><span hidden data-usage-used="142000" data-usage-max="1000000"></span></div></form></div></div></div></div>
+<script src="../runtime/overlay.js"></script>
+<script>
+const T = Math.max(0, Math.min(10000, Number(new URLSearchParams(location.search).get('t')) || 0));
+const TICKS = [700, 1300, 1900, 2500, 3100];            // five completed requests during the capture
+const ctxUsed = () => 142000 + (steps() - 54) * 6000;   // native context meter: 14.2% -> 16.6%
+function steps() { let s = 54; for (const x of TICKS) if (T >= x) s++; return s; }
+function cardFor(t) {
+  if (t >= 3500 && t < 5500) return 'activity';
+  if (t >= 5500 && t < 7500) return 'usage';
+  if (t >= 7500 && t < 9500) return 'context';
+  return null;
+}
+function dataPacket(now) {
+  if (T < 400) return { at: now, sessions: {} };        // row shows 待同步 before the first sample
+  const n = steps();
+  const turns = n >= 57 ? 6 : 5;
+  const tps = 204 + Math.sin(T / 173) * 8 + Math.sin(T / 57) * 3;
+  const tokens = 5180000 + (n - 54) * 13000;
+  const cacheHit = 0.812 + (n - 54) * 0.0048;
+  const input = Math.round(tokens * 0.989);
+  const cacheRead = Math.round(input * cacheHit);
+  const uncached = input - cacheRead;
+  const output = 54000 + (n - 54) * 660;
+  const toolCalls = n + 16;
+  return { at: now, sessions: { demo: {
+    turns, steps: n, tps, speedSamples: n,
+    decodeMs: Math.round(tps > 0 ? output / tps * 1000 : 0), tokenSamples: n,
+    tokens, cacheHit, cacheSamples: n, errors: 0,
+    modelMs: 480000 + (n - 54) * 12400, modelSamples: n,
+    toolMs: 760000 + (n - 54) * 11000, toolSamples: toolCalls, toolCalls,
+    ttftMs: 219000 + (n - 54) * 1800, ttftSamples: n,
+    inputTokens: input, inputSamples: n,
+    cacheReadTokens: cacheRead, cacheReadSamples: n,
+    cacheWriteTokens: 0, cacheWriteSamples: n,
+    uncachedInputTokens: uncached, uncachedInputSamples: n,
+    nonCacheReadInputTokens: uncached, nonCacheReadInputSamples: n,
+    outputTokens: output, outputSamples: n, breakdownSamples: n } } };
+}
+function apply() {
+  const now = Date.now();
+  document.querySelector('[data-usage-used]').dataset.usageUsed = String(ctxUsed());
+  window.__dshStats.receive(dataPacket(now));
+  const host = document.querySelector('[data-dsh-stats]');
+  if (!host) return false;
+  const sh = host.shadowRoot;
+  const openBtn = sh.querySelector('[aria-expanded="true"]');
+  const want = cardFor(T);
+  if ((openBtn ? openBtn.className : null) !== want) {
+    if (want) sh.querySelector('button.' + want)?.click();
+    else sh.querySelector('.close')?.click();
+  }
+  document.activeElement?.blur();   // programmatic clicks would otherwise leave a focus ring in the GIF
+  return true;
+}
+apply();
+for (const ms of [80, 200, 400, 700, 1200, 1800]) setTimeout(() => { apply(); }, ms);
+</script>
+</html>
