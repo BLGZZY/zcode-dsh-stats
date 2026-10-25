@@ -57,6 +57,7 @@ Windows verification used extension **0.4.0** with official ZCode 3.14.4, follow
 | Same-version simulated loader overwrite | Passed: deferred while the official app ran; repaired after normal exit; helper exited; live UI restored after relaunch. |
 | Official stable upgrade 3.14.4 → 3.16.3 (2026-10-25) | Passed: native update replaced the archive; native SessionStart queued recovery; normal exit allowed automatic repair and helper termination, without manual reinstallation. |
 | ZCode 3.16.3 UI after recovery and relaunch | Passed: restored 0.4.0 component, live data in all three cards, independent anchors and viewport bounds, 24px footer and 2px bottom padding; repair complete and helper exited. |
+| 0.4.1 during real answer generation (2026-10-25, official ZCode 3.16.3) | Passed: mouse-opened each card during streamed answer output; all 10 samples per card stayed visible and within the viewport while text grew and the timeline auto-scrolled. Thinking-phase checks also passed. |
 | Windows automated tests | 124-test Python suite passed with one POSIX-only skip; 6 Node tests passed. |
 
 The earlier simulated drill removed only this component's loader entry on the same official ZCode 3.14.4 version. It verified `deferred-until-exit`, helper survival after the calling terminal ended, reuse on repeated checks, repair after all matching app processes exited, helper termination and the restored 0.4.0 UI after relaunch.
