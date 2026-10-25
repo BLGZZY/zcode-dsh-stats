@@ -64,15 +64,9 @@ The row is **24px high**: it adapts to narrow panes, follows light/dark mode, an
 > [!IMPORTANT]
 > This is an unofficial, experimental extension. Setup **backs up first**, then adds a loader entry to the installed client's `app.asar`. It uses no official composer extension API and never rebuilds ZCode.
 
-| | |
-| --- | --- |
-| **Platforms** | macOS (Apple Silicon) · Windows 11 x64 · Linux is not supported |
-| **Client** | Official ZCode Desktop, verified on **3.14.4 / 3.16.3**; other versions must pass the compatibility checks |
-| **Requirements** | Python 3.11+ and Git, no pip dependencies |
+### Paste this into your agent (recommended)
 
-### Option 1: Ask your agent to install it (recommended)
-
-Paste this into an agent that can operate the terminal on your Windows PC or Mac (a web-only chat or remote sandbox cannot write to your machine):
+You need an agent that can operate the terminal on this PC or Mac (a web-only chat or remote sandbox cannot write to your machine). It handles the environment checks, installation, recovery setup and verification on its own:
 
 ```text
 Install ZCode DSH Stats on this Windows PC or Mac and enable automatic restoration after official ZCode updates.
@@ -82,20 +76,22 @@ Do not build ZCode Dev or force-quit a running ZCode. If system permissions or c
 Report whether installation and automatic recovery succeeded, and whether I still need to restart ZCode.
 ```
 
-You can also read the [agent installation guide](INSTALL_FOR_AGENTS.md) first.
+When it finishes, it will tell you whether ZCode still needs a restart. **Fully quit and reopen ZCode**, then open an existing local conversation — the row appears beneath the input card (a new draft has no statistics yet). You can also read the [agent installation guide](INSTALL_FOR_AGENTS.md) first.
 
-### Option 2: Install manually
+<details>
+<summary><b>🛠 No agent? Install manually (click to expand)</b></summary>
+
+Requires Python 3.11+, Git and the installed official ZCode Desktop; macOS (Apple Silicon) and Windows 11 x64 are supported, Linux is not.
 
 ```sh
 git clone https://github.com/BLGZZY/zcode-dsh-stats.git
 cd zcode-dsh-stats
 ```
 
-**macOS** (Terminal, or double-click `Install.command` in the downloaded folder):
+**macOS** (Terminal, or double-click `Install.command`):
 
 ```sh
 python3 setup_auto.py enable
-python3 setup_auto.py status
 ```
 
 **Windows** (PowerShell):
@@ -104,15 +100,9 @@ python3 setup_auto.py status
 .\Install.ps1
 ```
 
-Successful setup reports `auto-restore-enabled`. After background tasks finish, **fully quit and reopen ZCode**, then open an existing local conversation — the row appears beneath the input card. A new draft has no statistics yet.
+Successful setup reports `auto-restore-enabled`; fully quit and reopen ZCode to apply it.
 
-<details>
-<summary><b>🪟 Windows notes: Python path, execution policy, file in use</b></summary>
-
-- The installer discovers an installed Python 3.11+ and retains its absolute executable path. If Python is outside PATH, pass `-PythonPath 'C:\path\to\python.exe'` (your actual path); no environment activation or duplicate installation is needed.
-- Custom ZCode location: `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`.
-- If PowerShell blocks scripts, confirm `py -3 --version` is 3.11+ and run `py -3 setup_auto.py enable` directly; no execution-policy change is needed.
-- If Windows reports the app archive is in use during initial installation, let active tasks finish, fully quit ZCode normally, then rerun setup. The installer does not close the app for you.
+Windows notes: the installer discovers an installed Python 3.11+ and keeps its absolute path — pass `-PythonPath 'C:\path\to\python.exe'` if it is outside PATH; pass `-Asar 'C:\path\to\ZCode\resources\app.asar'` for a custom ZCode location; if PowerShell blocks scripts, confirm `py -3 --version` is 3.11+ and run `py -3 setup_auto.py enable` (no execution-policy change needed); if the archive is reported in use, fully quit ZCode normally and rerun.
 
 See [platform setup](docs/guide.md#install-and-inspect).
 </details>

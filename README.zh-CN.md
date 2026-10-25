@@ -64,15 +64,9 @@
 > [!IMPORTANT]
 > 非官方、实验性扩展。安装会**先备份**,再向已安装客户端的 `app.asar` 添加加载入口;不依赖官方输入框插件 API,也不会重新编译 ZCode。
 
-| | |
-| --- | --- |
-| **平台** | macOS(Apple Silicon)· Windows 11 x64 · 暂不支持 Linux |
-| **客户端** | 官方 ZCode Desktop,已实测 **3.14.4 / 3.16.3**;其他版本必须通过兼容检查 |
-| **依赖** | Python 3.11+ 与 Git,无 pip 依赖 |
+### 把这段话复制给 Agent(推荐)
 
-### 方式一:交给 Agent 安装(推荐)
-
-把这段话复制给能操作你本机终端的 agent(网页聊天或远程沙箱无法写入本机):
+需要一个能操作你本机终端的 agent(网页聊天或远程沙箱无法写入本机)。它会自己完成环境检查、安装、启用更新自动恢复和结果验证:
 
 ```text
 请在我这台 Windows 或 Mac 电脑上安装 ZCode DSH Stats,并启用官方 ZCode 更新后的自动恢复。
@@ -82,20 +76,22 @@
 最后告诉我是否安装成功、自动恢复是否启用,以及是否还需要重启 ZCode。
 ```
 
-也可以先阅读 [Agent 安装指南](INSTALL_FOR_AGENTS.md)再决定。
+完成后 agent 会告诉你是否还需要重启;**完全退出并重新打开 ZCode**,进入一个已有的本地会话,输入框下方就是统计行(新草稿暂无统计)。也可以先阅读 [Agent 安装指南](INSTALL_FOR_AGENTS.md)再决定。
 
-### 方式二:手动安装
+<details>
+<summary><b>🛠 不用 Agent?手动安装(点击展开)</b></summary>
+
+需要 Python 3.11+ 与 Git(无 pip 依赖)和已安装的官方 ZCode Desktop;支持 macOS(Apple Silicon)与 Windows 11 x64,暂不支持 Linux。
 
 ```sh
 git clone https://github.com/BLGZZY/zcode-dsh-stats.git
 cd zcode-dsh-stats
 ```
 
-**macOS**(终端,或双击下载目录里的 `Install.command`):
+**macOS**(终端,或双击 `Install.command`):
 
 ```sh
 python3 setup_auto.py enable
-python3 setup_auto.py status
 ```
 
 **Windows**(PowerShell):
@@ -104,15 +100,9 @@ python3 setup_auto.py status
 .\Install.ps1
 ```
 
-安装成功会显示 `auto-restore-enabled`。等后台任务结束后**完全退出并重新打开 ZCode**,进入一个已有的本地会话,输入框下方就是统计行;新草稿暂无统计。
+成功会显示 `auto-restore-enabled`,完全退出并重开 ZCode 后生效。
 
-<details>
-<summary><b>🪟 Windows 补充:Python 路径、执行策略、文件占用</b></summary>
-
-- 安装器自动寻找已装的 Python 3.11+ 并保留其绝对路径;Python 不在 PATH 时传 `-PythonPath 'C:\path\to\python.exe'`(替换为实际路径),无需激活环境或重复安装。
-- 自定义 ZCode 位置: `.\Install.ps1 -Asar 'C:\path\to\ZCode\resources\app.asar'`。
-- PowerShell 阻止脚本时,确认 `py -3 --version` 为 3.11+ 后直接运行 `py -3 setup_auto.py enable`,无需修改执行策略。
-- 首次安装若提示应用文件被占用:先完成当前任务,正常完全退出 ZCode 再重跑;安装器不会替你关闭应用。
+Windows 补充:安装器自动寻找已装的 Python 3.11+ 并保留其绝对路径,不在 PATH 时传 `-PythonPath 'C:\path\to\python.exe'`;自定义 ZCode 位置传 `-Asar 'C:\path\to\ZCode\resources\app.asar'`;PowerShell 阻止脚本时,确认 `py -3 --version` 为 3.11+ 后直接运行 `py -3 setup_auto.py enable`(无需修改执行策略);提示文件被占用时,正常完全退出 ZCode 后重跑即可。
 
 详见[平台安装说明](docs/guide.zh-CN.md#安装与卸载)。
 </details>
