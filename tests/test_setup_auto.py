@@ -64,10 +64,10 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(result['state'], 'auto-restore-enabled')
         self.assertEqual(result['version'], '3.test')
         self.assertFalse((self.runtime / 'auto-disabled').exists())
-        self.assertEqual(json.loads((self.runtime / 'auto.json').read_text()), {
+        self.assertEqual(json.loads((self.runtime / 'auto.json').read_text(encoding='utf-8')), {
             'enabled': True, 'asar': str(self.asar.resolve()), 'plugin': setup.PLUGIN_ID,
         })
-        self.assertEqual(json.loads((self.runtime / 'auto-setup-receipt.json').read_text()), result)
+        self.assertEqual(json.loads((self.runtime / 'auto-setup-receipt.json').read_text(encoding='utf-8')), result)
 
     def test_each_pre_activation_failure_leaves_auto_disabled(self):
         cases = ('compatibility', 'build', 'validate', 'component', 'marketplace', 'install-plugin', 'enable-plugin', 'config')
@@ -190,11 +190,11 @@ class SetupTests(unittest.TestCase):
             self.assertTrue(path.is_file())
             self.assertFalse(path.is_symlink())
             self.assertEqual(path.read_bytes(), (ROOT / relative).read_bytes())
-        manifest = json.loads((plugin / '.zcode-plugin/plugin.json').read_text())
+        manifest = json.loads((plugin / '.zcode-plugin/plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['name'], 'zcode-dsh-stats')
-        market_manifest = json.loads((market / 'marketplace.json').read_text())
+        market_manifest = json.loads((market / 'marketplace.json').read_text(encoding='utf-8'))
         self.assertEqual(market_manifest['plugins'][0]['source'], './plugins/zcode-dsh-stats')
-        hook_group = json.loads((plugin / 'hooks/hooks.json').read_text())['hooks']['SessionStart'][0]
+        hook_group = json.loads((plugin / 'hooks/hooks.json').read_text(encoding='utf-8'))['hooks']['SessionStart'][0]
         self.assertEqual(hook_group['matcher'], 'startup|resume|clear|compact')
         hook = hook_group['hooks'][0]
         self.assertEqual(hook['type'], 'process')
