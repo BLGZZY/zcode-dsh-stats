@@ -1,8 +1,24 @@
 async (page) => {
   page.setDefaultTimeout(5000);
   const check = (ok, label) => { if (!ok) throw new Error(label); };
+  const passed=[];
+  const rows = async card => card.locator('.body .line').evaluateAll(items => items.map(row =>
+    [row.querySelector('.label').textContent, row.querySelector('.value').textContent]));
+  const equalRows = async (card, expected, label) => check(JSON.stringify(await rows(card))===JSON.stringify(expected), label);
+  const setStats = async patch => page.evaluate(patch => {
+    window.demoPacket=()=>{const packet=window.acceptanceBasePacket();Object.assign(packet.sessions.demo,patch);return packet;};
+    window.__dshStats.receive(window.demoPacket());
+  },patch);
+  const assertSingleCard = async (card, kind) => {
+    check(await page.getByRole('dialog').count()===1, kind+' is the only visible card');
+    check(await page.locator('[data-dsh-stats] .row button[aria-expanded="true"]').count()===1, kind+' is the only expanded button');
+    const trigger=page.locator('[data-dsh-stats] .row button.'+kind);
+    const [a,b]=await Promise.all([card.boundingBox(),trigger.boundingBox()]);
+    check(Math.abs(a.x-b.x)<2 && a.y+a.height<=b.y && b.y-a.y-a.height<=10,kind+' anchors above its own button');
+  };
   await page.goto('http://127.0.0.1:8766/preview.html');
   await page.setViewportSize({width: 1100, height: 800});
+  await page.evaluate(()=>{window.acceptanceBasePacket=window.demoPacket;});
   await page.getByRole('button', {name:'6 轮 58 步 · 204 tok/s'}).waitFor();
   const geometry = await page.evaluate(() => {
     const host = document.querySelector('[data-dsh-stats]');
@@ -33,8 +49,73 @@ async (page) => {
   const rect=await panel.boundingBox();
   check(rect.x>=0 && rect.y>=0 && rect.x+rect.width<=1100 && rect.y+rect.height<=800,'detail stays in viewport');
   await page.screenshot({path:'output/playwright/detail.png'});
+  await equalRows(panel,[['模型用时','8分 23秒'],['工具调用用时','13分 20秒'],['首 token 平均（TTFT）','3.9秒'],['输出速度（TPS）','204 tok/s']], 'activity has exactly four timing/speed rows');
+  check(!(await panel.textContent()).includes('缓存命中') && !(await panel.textContent()).includes('5,230,601'), 'activity excludes token breakdown');
+  await assertSingleCard(panel,'activity');
+  passed.push('activity exact four metrics');
+  await page.evaluate(()=>{window.acceptanceEscapes=0;document.addEventListener('keydown',e=>{if(e.key==='Escape')window.acceptanceEscapes++;});});
   await page.keyboard.press('Escape');
   await panel.waitFor({state:'hidden'});
+  check(await page.evaluate(()=>window.acceptanceEscapes===0 && document.querySelector('[data-dsh-stats]').shadowRoot.activeElement?.className==='activity'),'Escape stays inside stats and returns focus');
+  const usage=page.getByRole('dialog',{name:'Token 用量详情'});
+  const context=page.getByRole('dialog',{name:'上下文占用详情'});
+  await page.locator('[data-dsh-stats] .usage').click();
+  await usage.waitFor({state:'visible'});
+  check(await usage.locator('.headline').textContent()==='5,230,601 tok','usage headline preserves full total');
+  await equalRows(usage,[['缓存命中','83%'],['未缓存输入','874,308 tok'],['缓存读取','4,299,648 tok'],['输出','56,645 tok']], 'usage contains cache and input/output only');
+  check(!/模型用时|工具调用用时|TTFT|TPS/.test(await usage.textContent()),'usage excludes activity metrics');
+  await assertSingleCard(usage,'usage');
+  await page.screenshot({path:'output/playwright/cards-usage.png'});
+  // Switching directly between buttons must replace, rather than stack, cards.
+  await page.locator('[data-dsh-stats] .context').click();
+  await context.waitFor({state:'visible'});
+  await assertSingleCard(context,'context');
+  check(await context.locator('.title').textContent()==='上下文已用 16%' && await context.locator('.headline').textContent()==='160K / 1M','context headline follows native used/max');
+  await equalRows(context,[['已用上下文','160,000 tok'],['剩余可用','840,000 tok'],['上下文上限','1,000,000 tok']], 'context has native used, remaining and limit without invented categories');
+  const meter=context.getByRole('progressbar',{name:'上下文占用'});
+  check(await meter.getAttribute('aria-valuenow')==='16' && await meter.getAttribute('aria-valuetext')==='160,000 / 1,000,000 token','context accessible progress follows native values');
+  check(await meter.evaluate(el=>el.children.length===1 && el.firstElementChild.style.width==='16%'),'context progress is one actual-used segment');
+  await page.screenshot({path:'output/playwright/cards-context.png'});
+  await page.locator('[data-dsh-stats] .context').click();
+  await context.waitFor({state:'hidden'});
+  passed.push('usage exact totals and isolation','native context and progress','three independent anchors','one card at a time','same button toggles closed','Escape focus and propagation');
+  // A live paint must preserve the close node and keyboard focus in every card.
+  for (const [kind,card] of [['activity',panel],['usage',usage],['context',context]]) {
+    await page.locator('[data-dsh-stats] .'+kind).click();
+    await card.getByRole('button',{name:'关闭详情'}).focus();
+    await page.evaluate(()=>{window.acceptanceClose=document.querySelector('[data-dsh-stats]').shadowRoot.activeElement;});
+    if(kind==='context') await page.evaluate(()=>{document.querySelector('[data-usage-used]').dataset.usageUsed='161000';window.__dshStats.receive(window.demoPacket());});
+    else await setStats(kind==='activity'?{tps:205.4,modelMs:497000}:{tokens:5230602});
+    check(await page.evaluate(()=>{const s=document.querySelector('[data-dsh-stats]').shadowRoot;return s.activeElement===window.acceptanceClose && window.acceptanceClose.isConnected;}),kind+' live update keeps close focused');
+    check((await card.textContent()).includes(kind==='activity'?'205 tok/s':kind==='usage'?'5,230,602 tok':'161,000 tok'),kind+' receives changed data while open');
+    await page.keyboard.press('Escape');
+    await setStats({});
+  }
+  await page.evaluate(()=>{document.querySelector('[data-usage-used]').dataset.usageUsed='160000';window.__dshStats.receive(window.demoPacket());});
+  passed.push('live updates preserve close focus in all cards');
+  await setStats({modelSamples:57,toolSamples:73,ttftMs:222300,ttftSamples:57,speedSamples:57,tokenSamples:57,cacheSamples:57,cacheReadSamples:57,outputSamples:57,cacheWriteTokens:null,cacheWriteSamples:0,uncachedInputTokens:null,uncachedInputSamples:0,nonCacheReadInputTokens:874308,nonCacheReadInputSamples:57});
+  await page.locator('[data-dsh-stats] .activity').click();
+  await equalRows(panel,[['模型用时','8分 23秒*'],['工具调用用时','13分 20秒*'],['首 token 平均（TTFT）','3.9秒*'],['输出速度（TPS）','204 tok/s*']],'partial activity metrics carry stars');
+  check((await panel.locator('.footnote').textContent()).includes('模型 57/58') && (await panel.locator('.footnote').textContent()).includes('工具 73/74'),'partial activity explains sample coverage');
+  await page.locator('[data-dsh-stats] .usage').click();
+  check(await usage.locator('.headline').textContent()==='5,230,601 tok*','partial total is marked');
+  await equalRows(usage,[['缓存命中','83%*'],['非缓存读取输入','874,308 tok*'],['缓存读取','4,299,648 tok*'],['输出','56,645 tok*']],'missing write data uses non-cache-read input fallback');
+  check((await usage.locator('.label').filter({hasText:'非缓存读取输入'}).getAttribute('title')).includes('可能包含'),'fallback explains potentially unreported writes');
+  check((await usage.locator('.footnote').textContent()).includes('输入 57/58'),'partial usage explains input coverage');
+  passed.push('partial sample markers and coverage','missing cache writes fallback');
+  await page.keyboard.press('Escape');
+  // Missing raw timing/context fields must remain unknown instead of becoming zero.
+  await setStats({modelMs:null,toolMs:null,ttftMs:null,ttftSamples:0,tps:null});
+  await page.locator('[data-dsh-stats] .activity').click();
+  check((await rows(panel)).every(([,value])=>value==='—'),'missing activity values remain unknown');
+  await page.evaluate(()=>{const n=document.querySelector('[data-usage-used]');n.dataset.usageUsed='';n.dataset.usageMax='';window.__dshStats.receive(window.demoPacket());});
+  await page.locator('[data-dsh-stats] .context').click();
+  check(await context.locator('.headline').textContent()==='— / —' && (await rows(context)).every(([,value])=>value==='—'),'missing context is unknown');
+  check(await context.getByRole('progressbar').getAttribute('aria-valuenow')===null && (await context.locator('.footnote').textContent()).includes('不可用'),'unknown context has no fake percentage');
+  await page.keyboard.press('Escape');
+  await setStats({});
+  await page.evaluate(()=>{const n=document.querySelector('[data-usage-used]');n.dataset.usageUsed='160000';n.dataset.usageMax='1000000';window.__dshStats.receive(window.demoPacket());});
+  passed.push('unknown metrics and context stay unknown');
   await page.getByRole('button', {name:'切换明暗'}).click();
   await page.waitForFunction(()=>document.querySelector('[data-dsh-stats]').hasAttribute('data-dark'));
   await page.screenshot({path:'output/playwright/dark.png'});
@@ -78,15 +159,28 @@ async (page) => {
   });
   await page.getByRole('button',{name:/33 tok\/s/}).waitFor();
   check(await page.locator('[data-dsh-stats]').count()===2,'split panes mount exactly once');
+  await page.locator('[data-dsh-stats] .activity').first().click();
+  await page.locator('[data-dsh-stats] .usage').last().click();
+  check(await page.getByRole('dialog').count()===1 && await page.getByRole('dialog',{name:'Token 用量详情'}).locator('.headline').textContent()==='1,234 tok','switching panes leaves only the newly selected card with its own data');
+  await page.keyboard.press('Escape');
+  passed.push('one card across split panes');
   await page.evaluate(()=>{
     const original=window.demoPacket;
     window.demoPacket=()=>({...original(),at:Date.now()-20000});
     window.__dshStats.receive(window.demoPacket());
   });
   await page.getByRole('button',{name:/— tok\/s/}).first().click();
-  check(!(await page.getByRole('dialog',{name:'会话统计详情'}).first().textContent()).includes('204 tok/s'),'stale detail never shows a live-looking number');
+  const staleActivity=page.getByRole('dialog',{name:'会话统计详情'});
+  check((await rows(staleActivity)).every(([,value])=>value==='—') && (await staleActivity.locator('.footnote').textContent()).includes('过期'),'stale activity hides every timing and speed value with explanation');
+  await page.locator('[data-dsh-stats] .usage').first().click();
+  const staleUsage=page.getByRole('dialog',{name:'Token 用量详情'});
+  check(await staleUsage.locator('.headline').textContent()==='—' && (await rows(staleUsage)).every(([,value])=>value==='—') && (await staleUsage.locator('.footnote').textContent()).includes('过期'),'stale usage hides total and all breakdown values');
+  await page.locator('[data-dsh-stats] .context').first().click();
+  const liveContext=page.getByRole('dialog',{name:'上下文占用详情'});
+  check(await liveContext.getByRole('progressbar').getAttribute('aria-valuenow')==='16' && await liveContext.locator('.headline').textContent()==='160K / 1M','stale collector does not hide independent live native context');
+  passed.push('stale activity and usage hide values','native context survives stale collector');
   await page.evaluate(()=>window.__dshStats.dispose());
   check(await page.locator('[data-dsh-stats]').count()===0,'dispose cleans all hosts');
   check(await page.evaluate(()=>!document.querySelector('[data-dsh-stats-layout]') && [...document.querySelectorAll('[data-v4-composer-dock-content]')].every(d=>getComputedStyle(d).paddingBottom==='16px')), 'dispose restores native dock styles');
-  return {passed:['outside-card mount','27px centered single row','2px bottom gutter','native gutter restored','Highspeed clipping','320px width','top-layer details','Escape','light/dark','390px width','session switch','draft cleanup','split panes','stale detail','dispose']};
+  return {passed:[...passed,'outside-card mount','27px centered single row','2px bottom gutter','native gutter restored','Highspeed clipping','320px width','top-layer details','Escape','light/dark','390px width','session switch','draft cleanup','split panes','stale detail','dispose']};
 }

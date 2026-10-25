@@ -37,12 +37,19 @@ Removal records an opt-out first. The plugin registration may remain, but the ho
 | Metric | Definition |
 | --- | --- |
 | Turns / steps | Distinct turns and completed main_turn requests in locally retained records. Failed, cancelled and background requests are excluded. |
+| Model time | Sum of client-recorded completed main-request durations, including preparation, retries and completion handling. Not pure server inference time. |
+| Tool time | Sum of dispatch-to-terminal intervals associated with retained main turns, including queue/approval waits and failed/cancelled calls. Parallel calls overlap; this is not wall-clock waiting time. |
+| Mean TTFT | Arithmetic mean of valid first-token delays; missing timing samples are excluded and marked. |
 | Decode tok/s | Sum of output tokens divided by sum of completion-minus-first-token durations, over paired valid samples. Updated after completion. |
 | Tokens | Cumulative completed main-request tokens, with legacy cached-input storage normalized to avoid double counting. |
 | Cache hit | Input-weighted cache-hit ratio where stored usage provides sufficient evidence. |
 | Context | Native usage/limit from the active pane; no model-window guessing. |
 
 ZCode normally retains about 30 days of usage, so these are not permanent lifetime totals. Missing values show as unknown; `*` means partial sample coverage. Tool-only output may lack a first-token timestamp because ZCode records it for text/reasoning. Details show sample coverage.
+
+Token details use independent sample counts. If cache writes are not fully reported, the input row is labeled non-cache-read input and includes any unreported writes. Partial rows carry an asterisk; they must not be treated as a complete reconciled partition.
+
+Context details use only native total usage and capacity. System/tool/message token breakdown is unavailable; character proportions are not converted into token counts.
 
 Each pane uses its exact session ID. A new draft hides the row; a remote session without local records shows unavailable instead of borrowing another session's values. Collector data older than 10 seconds is hidden.
 

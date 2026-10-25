@@ -18,14 +18,24 @@ A compact token usage bar for official ZCode Desktop, with automatic restoration
 | **6 turns · 58 steps · 204 tok/s** | Completed conversation turns, main requests and average decode speed. |
 | **5.2M tok · 83% cache hits** | Cumulative token usage and the input's cache-hit ratio. |
 | **16% context** | Native context usage for the active conversation. |
-| **Click any metric** | Open exact totals, valid sample counts and calculation notes. |
+| **Click any metric** | Open separate timing, token breakdown and context-capacity cards. |
 
 The row is **24px high**, adapts to narrow panes, follows light/dark mode and keeps each split pane's statistics separate. Illustrations use **demo data**; installed statistics come from local session records. Speed updates after requests complete, not token by token.
 
 <details>
-<summary><strong>See the detail panel</strong></summary>
+<summary><strong>See the three detail cards</strong></summary>
 
-![Statistics detail panel with exact values and valid speed samples, using demo data](docs/assets/showcase-details.png)
+**Session performance** — model/tool time, average TTFT and decode speed.
+
+![Session timing card, demo data](docs/assets/card-activity.png)
+
+**Token usage** — cache hits, uncached input, cache reads and output.
+
+![Token breakdown card, demo data](docs/assets/card-tokens.png)
+
+**Context capacity** — native usage, remaining tokens and an accessible progress bar. ZCode does not expose per-category token counts.
+
+![Native context usage card, demo data](docs/assets/card-context.png)
 
 </details>
 

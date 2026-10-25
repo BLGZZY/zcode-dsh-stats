@@ -121,6 +121,130 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(stats['steps'], 6)
         self.assertEqual(stats['turns'], 2)
 
+    def test_model_time_and_average_first_token_latency_use_separate_valid_samples(self):
+        stats = collector.summarize([
+            request(started_at=1000, first_token_at=2000, completed_at=4000),
+            request(started_at=10000, first_token_at=13000, completed_at=14000),
+            request(started_at=20000, first_token_at=None, completed_at=21000),
+            request(started_at=30000, first_token_at=29000, completed_at=28000),
+            request(status='error', started_at=0, first_token_at=100, completed_at=99999),
+        ])
+        self.assertEqual(stats['modelMs'], 8000)
+        self.assertEqual(stats['modelSamples'], 3)
+        self.assertEqual(stats['ttftMs'], 4000)
+        self.assertEqual(stats['ttftSamples'], 2)
+        self.assertEqual(stats['ttftMs'] / stats['ttftSamples'], 2000)
+
+    def test_token_breakdown_preserves_complete_partition_without_double_counting(self):
+        stats = collector.summarize([
+            request(input_tokens=100, output_tokens=20, cache_read_input_tokens=70,
+                    cache_creation_input_tokens=10),
+            request(input_tokens=900, output_tokens=30, cache_read_input_tokens=400,
+                    cache_creation_input_tokens=100),
+        ])
+        self.assertEqual(stats['inputTokens'], 1000)
+        self.assertEqual(stats['outputTokens'], 50)
+        self.assertEqual(stats['cacheReadTokens'], 470)
+        self.assertEqual(stats['cacheWriteTokens'], 110)
+        self.assertEqual(stats['uncachedInputTokens'], 420)
+        self.assertEqual(stats['nonCacheReadInputTokens'], 530)
+        self.assertEqual(stats['uncachedInputTokens'] + stats['cacheReadTokens']
+                         + stats['cacheWriteTokens'] + stats['outputTokens'], stats['tokens'])
+        for key in ('inputSamples', 'outputSamples', 'cacheReadSamples',
+                    'cacheWriteSamples', 'uncachedInputSamples', 'nonCacheReadInputSamples',
+                    'breakdownSamples'):
+            self.assertEqual(stats[key], 2)
+
+    def test_unknown_cache_write_does_not_make_uncached_input_a_guess(self):
+        stats = collector.summarize([request(raw_usage_json=json.dumps({
+            'inputTokens': 100, 'outputTokens': 20, 'cacheReadTokens': 80}))])
+        self.assertEqual(stats['inputTokens'], 100)
+        self.assertEqual(stats['cacheReadTokens'], 80)
+        self.assertEqual(stats['outputTokens'], 20)
+        self.assertEqual(stats['nonCacheReadInputTokens'], 20)
+        self.assertEqual(stats['nonCacheReadInputSamples'], 1)
+        self.assertIsNone(stats['cacheWriteTokens'])
+        self.assertIsNone(stats['uncachedInputTokens'])
+        self.assertEqual(stats['cacheWriteSamples'], 0)
+        self.assertEqual(stats['uncachedInputSamples'], 0)
+        self.assertEqual(stats['breakdownSamples'], 0)
+
+    def test_partial_breakdown_has_per_metric_coverage(self):
+        stats = collector.summarize([
+            request(),
+            request(input_tokens=100, output_tokens=0,
+                    raw_usage_json=json.dumps({'inputTokens': 100, 'cacheReadTokens': 80})),
+        ])
+        self.assertEqual(stats['inputTokens'], 200)
+        self.assertEqual(stats['inputSamples'], 2)
+        self.assertEqual(stats['outputTokens'], 20)
+        self.assertEqual(stats['outputSamples'], 1)
+        self.assertEqual(stats['cacheReadTokens'], 160)
+        self.assertEqual(stats['cacheReadSamples'], 2)
+        self.assertEqual(stats['nonCacheReadInputTokens'], 40)
+        self.assertEqual(stats['nonCacheReadInputSamples'], 2)
+        self.assertEqual(stats['uncachedInputTokens'], 20)
+        self.assertEqual(stats['uncachedInputSamples'], 1)
+        self.assertEqual(stats['breakdownSamples'], 1)
+
+    def test_impossible_cache_partition_does_not_produce_negative_uncached_tokens(self):
+        stats = collector.summarize([request(input_tokens=100, cache_read_input_tokens=80,
+                                             cache_creation_input_tokens=40)])
+        self.assertIsNone(stats['uncachedInputTokens'])
+        self.assertEqual(stats['uncachedInputSamples'], 0)
+        self.assertEqual(stats['breakdownSamples'], 0)
+
+    def test_non_cache_read_input_requires_paired_valid_input_and_cache_read(self):
+        for fields in (
+            {'input_tokens': None},
+            {'cache_read_input_tokens': 0, 'raw_usage_json': '{"inputTokens":100}'},
+            {'cache_read_input_tokens': 120},
+        ):
+            with self.subTest(fields=fields):
+                stats = collector.summarize([request(**fields)])
+                self.assertIsNone(stats['nonCacheReadInputTokens'])
+                self.assertEqual(stats['nonCacheReadInputSamples'], 0)
+        measured_zero = collector.summarize([request(input_tokens=100, cache_read_input_tokens=100)])
+        self.assertEqual(measured_zero['nonCacheReadInputTokens'], 0)
+        self.assertEqual(measured_zero['nonCacheReadInputSamples'], 1)
+        self.assertEqual(collector.summarize([])['nonCacheReadInputTokens'], 0)
+
+    def test_missing_timing_is_unknown_but_zero_timing_is_measured(self):
+        missing = collector.summarize([request(started_at=None, completed_at=None)])
+        self.assertIsNone(missing['modelMs'])
+        self.assertIsNone(missing['ttftMs'])
+        self.assertEqual(missing['modelSamples'], 0)
+        zero = collector.summarize([request(started_at=1000, first_token_at=1000, completed_at=1000)])
+        self.assertEqual(zero['modelMs'], 0)
+        self.assertEqual(zero['modelSamples'], 1)
+        self.assertEqual(zero['ttftMs'], 0)
+        self.assertEqual(zero['ttftSamples'], 1)
+        self.assertIsNone(zero['tps'])
+
+
+class ToolTimingTests(unittest.TestCase):
+    def test_real_tool_intervals_sum_parallel_overlap_and_ignore_running_calls(self):
+        stats = collector.summarize_tools([
+            {'status': 'completed', 'started_at': 1000, 'completed_at': 4000},
+            {'status': 'error', 'started_at': 2000, 'completed_at': 3000},
+            {'status': 'cancelled', 'started_at': 5000, 'completed_at': 5500},
+            {'status': 'running', 'started_at': 0, 'completed_at': 1000000},
+        ])
+        self.assertEqual(stats, {'toolMs': 4500, 'toolSamples': 3, 'toolCalls': 3})
+
+    def test_tool_zero_unknown_and_missing_surface_remain_distinct(self):
+        self.assertEqual(collector.summarize_tools(None),
+                         {'toolMs': None, 'toolSamples': 0, 'toolCalls': None})
+        self.assertEqual(collector.summarize_tools([]),
+                         {'toolMs': 0, 'toolSamples': 0, 'toolCalls': 0})
+        self.assertEqual(collector.summarize_tools([
+            {'status': 'completed', 'started_at': 1000, 'completed_at': 1000}]),
+            {'toolMs': 0, 'toolSamples': 1, 'toolCalls': 1})
+        self.assertEqual(collector.summarize_tools([
+            {'status': 'completed', 'started_at': 1000, 'completed_at': None},
+            {'status': 'error', 'started_at': 2000, 'completed_at': 1000}]),
+            {'toolMs': None, 'toolSamples': 0, 'toolCalls': 2})
+
 
 class DatabaseTests(unittest.TestCase):
     def setUp(self):
@@ -140,17 +264,29 @@ class DatabaseTests(unittest.TestCase):
                     raw_usage_json TEXT);
                 CREATE INDEX model_usage_session_turn_idx
                     ON model_usage(session_id,turn_id);
+                CREATE TABLE tool_usage (
+                    id TEXT PRIMARY KEY, session_id TEXT, turn_id TEXT,
+                    status TEXT, started_at INTEGER, completed_at INTEGER);
                 INSERT INTO session VALUES ('session-a'), ('session-b'), ('empty');
             ''')
             columns = [key for key in request() if not key.endswith('_known')]
             sql = 'INSERT INTO model_usage (id,session_id,query_source,' + ','.join(columns) + ') VALUES (' + ','.join('?' for _ in range(3 + len(columns))) + ')'
             for key, sid, source, row in [
                 ('a1', 'session-a', 'main_turn', request()),
-                ('a-bg', 'session-a', 'background', request(output_tokens=99999)),
+                ('a-bg', 'session-a', 'background', request(turn_id='background-turn', output_tokens=99999)),
                 ('b1', 'session-b', 'main_turn', request(output_tokens=40)),
                 ('b-error', 'session-b', 'main_turn', request(status='error')),
             ]:
                 con.execute(sql, (key, sid, source, *(row[k] for k in columns)))
+            con.executemany('INSERT INTO tool_usage VALUES (?,?,?,?,?,?)', [
+                ('tool-a1', 'session-a', 'turn-1', 'completed', 1500, 3500),
+                ('tool-a2', 'session-a', 'turn-1', 'error', 2000, 2500),
+                ('tool-a3', 'session-a', 'turn-1', 'completed', 3000, None),
+                ('tool-running', 'session-a', 'turn-1', 'running', 3000, 99999),
+                ('tool-background', 'session-a', 'background-turn', 'completed', 0, 99999),
+                ('tool-unknown', 'session-a', None, 'completed', 0, 99999),
+                ('tool-b', 'session-b', 'turn-1', 'completed', 0, 7000),
+            ])
 
     def update_request(self, **values):
         with closing(sqlite3.connect(self.db)) as con, con:
@@ -165,6 +301,10 @@ class DatabaseTests(unittest.TestCase):
         actual = collector.snapshot(self.db, ['session-a'])['session-a']
         self.assertEqual(actual['tokens'], 110)
         self.assertEqual(actual['cacheHit'], 0.8)
+        self.assertEqual(actual['inputTokens'], 100)
+        self.assertEqual(actual['uncachedInputTokens'], 20)
+        self.assertEqual(actual['outputTokens'], 10)
+        self.assertEqual(actual['breakdownSamples'], 1)
 
     def test_historical_cache_write_included_and_computed_total_is_fallback(self):
         self.update_request(input_tokens=20, output_tokens=10, cache_read_input_tokens=60,
@@ -232,6 +372,32 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(actual['session-b']['tokens'], 140)
         self.assertEqual(actual['session-b']['tps'], 40)
         self.assertEqual(actual['session-b']['errors'], 1)
+
+    def test_tools_filter_exact_session_and_retained_main_turn_ids(self):
+        actual = collector.snapshot(self.db, ['session-a', 'session-b', 'empty'])
+        self.assertEqual({key: actual['session-a'][key] for key in ('toolMs', 'toolSamples', 'toolCalls')},
+                         {'toolMs': 2500, 'toolSamples': 2, 'toolCalls': 3})
+        self.assertEqual(actual['session-b']['toolMs'], 7000)
+        self.assertEqual(actual['session-b']['toolCalls'], 1)
+        self.assertEqual(actual['empty']['toolMs'], 0)
+        self.assertEqual(actual['empty']['toolCalls'], 0)
+
+    def test_missing_tool_surface_does_not_break_model_or_token_statistics(self):
+        with closing(sqlite3.connect(self.db)) as con, con:
+            con.execute('DROP TABLE tool_usage')
+        actual = collector.snapshot(self.db, ['session-a'])['session-a']
+        self.assertEqual(actual['tokens'], 120)
+        self.assertEqual(actual['modelMs'], 2000)
+        self.assertIsNone(actual['toolMs'])
+        self.assertIsNone(actual['toolCalls'])
+        self.assertEqual(actual['toolSamples'], 0)
+
+    def test_missing_tool_timing_column_does_not_invent_tool_duration(self):
+        with closing(sqlite3.connect(self.db)) as con, con:
+            con.execute('ALTER TABLE tool_usage DROP COLUMN completed_at')
+        actual = collector.snapshot(self.db, ['session-a'])['session-a']
+        self.assertEqual(actual['tokens'], 120)
+        self.assertIsNone(actual['toolMs'])
 
     def test_unknown_session_does_not_fall_back_to_last_session(self):
         result = collector.snapshot(self.db, ['unknown', 'empty'])

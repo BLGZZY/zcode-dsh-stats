@@ -9,6 +9,6 @@
 <p class="caption">演示值：6 轮 · 58 步 · 204 tok/s · 5.2M tok · 83% 缓存命中 · 16% 上下文</p></main>
 <script src="runtime/overlay.js"></script><script>
 document.querySelector('#theme').onclick=()=>document.documentElement.classList.toggle('dark');
-window.demoPacket=()=>({at:Date.now(),sessions:{demo:{turns:6,steps:58,tps:204.4,speedSamples:58,decodeMs:42000,tokens:5200000,tokenSamples:58,cacheHit:.83,cacheSamples:58,errors:0}}});
+window.demoPacket=()=>({at:Date.now(),sessions:{demo:{turns:6,steps:58,tps:204.4,speedSamples:58,decodeMs:277128,tokens:5230601,tokenSamples:58,cacheHit:.831,cacheSamples:58,errors:0,modelMs:503328,modelSamples:58,toolMs:800000,toolSamples:74,toolCalls:74,ttftMs:226200,ttftSamples:58,inputTokens:5173956,inputSamples:58,cacheReadTokens:4299648,cacheReadSamples:58,cacheWriteTokens:0,cacheWriteSamples:58,uncachedInputTokens:874308,uncachedInputSamples:58,nonCacheReadInputTokens:874308,nonCacheReadInputSamples:58,outputTokens:56645,outputSamples:58,breakdownSamples:58}}});
 window.__dshStats.receive(demoPacket());setInterval(()=>window.__dshStats.receive(demoPacket()),1500);
 </script></html>

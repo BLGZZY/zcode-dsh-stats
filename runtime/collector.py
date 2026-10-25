@@ -47,18 +47,44 @@ def input_side(row):
 def summarize(rows):
     good = [r for r in rows if r['status'] == 'completed']
     paired, totals, cache = [], [], []
+    model_times, ttft_times = [], []
+    inputs, outputs, cache_reads, cache_writes, uncached, non_cache_reads = [], [], [], [], [], []
+    breakdown_samples = 0
     for r in good:
         normalized_input = input_side(r)
         output_known = known(r, 'output_tokens', 'output_known')
+        read_known = known(r, 'cache_read_input_tokens', 'cache_read_known')
+        write_known = known(r, 'cache_creation_input_tokens', 'cache_write_known')
+        read, write = r['cache_read_input_tokens'], r['cache_creation_input_tokens']
+        if normalized_input is not None:
+            inputs.append(normalized_input)
+        if output_known:
+            outputs.append(r['output_tokens'])
+        # Each total keeps its own coverage. Missing cache write is not evidence of zero.
+        if read_known and (normalized_input is None or read <= normalized_input):
+            cache_reads.append(read)
+        if write_known and (normalized_input is None or write <= normalized_input):
+            cache_writes.append(write)
+        if normalized_input is not None and read_known and write_known and read + write <= normalized_input:
+            uncached.append(normalized_input - read - write)
+            if output_known:
+                breakdown_samples += 1
         if normalized_input is not None and output_known:
             totals.append(normalized_input + r['output_tokens'])
-        if normalized_input is not None and known(r, 'cache_read_input_tokens', 'cache_read_known') and r['cache_read_input_tokens'] <= normalized_input:
-            cache.append((normalized_input, r['cache_read_input_tokens']))
+        if normalized_input is not None and read_known and read <= normalized_input:
+            cache.append((normalized_input, read))
+            non_cache_reads.append(normalized_input - read)
         start, first, end, out = (r[k] for k in ('started_at', 'first_token_at', 'completed_at', 'output_tokens'))
+        if number(start) and number(end) and start <= end:
+            model_times.append(end - start)
+            if number(first) and start <= first <= end:
+                ttft_times.append(first - start)
         if output_known and all(number(v) for v in (start, first, end, out)) and start <= first < end:
             paired.append((out, end - first))
     duration = sum(p[1] for p in paired)
     cache_input = sum(p[0] for p in cache)
+    def total(values):
+        return sum(values) if values else (0 if not good else None)
     return {
         'turns': len({r['turn_id'] for r in good if isinstance(r['turn_id'], str) and r['turn_id'].strip()}),
         'steps': len(good),
@@ -70,7 +96,42 @@ def summarize(rows):
         'cacheHit': sum(p[1] for p in cache) / cache_input if cache_input else None,
         'cacheSamples': len(cache),
         'errors': sum(r['status'] == 'error' for r in rows),
+        'modelMs': total(model_times),
+        'modelSamples': len(model_times),
+        # Summed latency; the UI divides by ttftSamples for the per-request average.
+        'ttftMs': total(ttft_times),
+        'ttftSamples': len(ttft_times),
+        'inputTokens': total(inputs),
+        'inputSamples': len(inputs),
+        'outputTokens': total(outputs),
+        'outputSamples': len(outputs),
+        'cacheReadTokens': total(cache_reads),
+        'cacheReadSamples': len(cache_reads),
+        'cacheWriteTokens': total(cache_writes),
+        'cacheWriteSamples': len(cache_writes),
+        'uncachedInputTokens': total(uncached),
+        'uncachedInputSamples': len(uncached),
+        # Includes cache writes when present; does not assume unknown writes are zero.
+        'nonCacheReadInputTokens': total(non_cache_reads),
+        'nonCacheReadInputSamples': len(non_cache_reads),
+        'breakdownSamples': breakdown_samples,
     }
+
+
+def summarize_tools(rows):
+    """Sum observed dispatch-to-terminal tool intervals, including parallel overlap.
+
+    No model or turn elapsed time is used as a substitute for tool measurements.
+    None means the database does not expose the required tool-usage surface.
+    """
+    if rows is None:
+        return {'toolMs': None, 'toolSamples': 0, 'toolCalls': None}
+    terminal = [r for r in rows if r['status'] in ('completed', 'error', 'cancelled')]
+    timings = [r['completed_at'] - r['started_at'] for r in terminal
+               if number(r['started_at']) and number(r['completed_at'])
+               and r['started_at'] <= r['completed_at']]
+    return {'toolMs': sum(timings) if timings else (0 if not terminal else None),
+            'toolSamples': len(timings), 'toolCalls': len(terminal)}
 
 
 def snapshot(db, sessions):
@@ -80,6 +141,8 @@ def snapshot(db, sessions):
         con.row_factory = sqlite3.Row
         con.execute('PRAGMA query_only=ON')
         con.execute('BEGIN')
+        tool_columns = {r['name'] for r in con.execute('PRAGMA table_info(tool_usage)')}
+        has_tools = {'session_id', 'turn_id', 'status', 'started_at', 'completed_at'} <= tool_columns
         for sid in dict.fromkeys(sessions[:8]):
             if not isinstance(sid, str) or not 1 <= len(sid) <= 160:
                 continue
@@ -103,7 +166,15 @@ def snapshot(db, sessions):
                     AND json_extract(raw_usage_json,'$.cacheWriteTokens') >= 0 ELSE 0 END AS cache_write_known
                 FROM model_usage
                 WHERE session_id=? AND query_source='main_turn' ORDER BY started_at''', (sid,)).fetchall()
-            result[sid] = summarize(rows)
+            tools = None
+            if has_tools:
+                # tool_usage has no query_source; restrict to this session's retained
+                # main-turn IDs rather than accidentally including another session.
+                tools = con.execute('''SELECT status,started_at,completed_at FROM tool_usage AS t
+                    WHERE t.session_id=? AND EXISTS (
+                        SELECT 1 FROM model_usage AS m WHERE m.session_id=t.session_id
+                        AND m.turn_id=t.turn_id AND m.query_source='main_turn')''', (sid,)).fetchall()
+            result[sid] = {**summarize(rows), **summarize_tools(tools)}
     return result
 
 
