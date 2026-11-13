@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome in English or Chinese. Include operating system/version, architecture, ZCode version, extension version, expected behavior and reproduction steps. Use synthetic examples and redact private data before sharing logs or screenshots.
 
-Checked targets are macOS / Apple Silicon with ZCode 3.16.3 and Windows 11 x64 with official ZCode 3.14.4 and 3.16.3. Windows installation, recovery registration, live official-client statistics on both versions and a same-version simulated loader-overwrite recovery drill were verified with an existing Anaconda base Python 3.11.4. Distinguish fixture tests, preview tests, installed-client verification and recovery drills in reports; see the [verification table](docs/guide.md#verified-configurations) for the current evidence.
+Checked targets are macOS / Apple Silicon with ZCode 3.16.3 and 3.18.2 and Windows 11 x64 with official ZCode 3.14.4 and 3.16.3. Windows installation, recovery registration, live official-client statistics on both versions and a same-version simulated loader-overwrite recovery drill were verified with an existing Anaconda base Python 3.11.4. Distinguish fixture tests, preview tests, installed-client verification and recovery drills in reports; see the [verification table](docs/guide.md#verified-configurations) for the current evidence.
 
 ## Run checks
 

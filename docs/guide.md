@@ -4,7 +4,7 @@
 
 ## Install and inspect
 
-Checked targets are **macOS / Apple Silicon with ZCode 3.16.3** and **Windows 11 x64 with official ZCode 3.14.4 and 3.16.3**. Windows was validated with an existing Anaconda base Python 3.11.4. Linux is not supported. Python 3.11+ is required on both target platforms; no pip dependencies.
+Checked targets are **macOS / Apple Silicon with ZCode 3.16.3 and 3.18.2** and **Windows 11 x64 with official ZCode 3.14.4 and 3.16.3**. Windows was validated with an existing Anaconda base Python 3.11.4. Linux is not supported. Python 3.11+ is required on both target platforms; no pip dependencies.
 
 On macOS, use `python3` or double-click `Install.command`. On Windows, open PowerShell in the downloaded directory and run:
 
@@ -65,6 +65,8 @@ The earlier simulated drill removed only this component's loader entry on the sa
 A separate real-upgrade verification then used the client's native updater and an officially signed stable-channel package on 2026-10-25. After the new version replaced the archive, opening an existing session automatically triggered SessionStart recovery. No setup or restoration command was run manually. The helper restored the loader after normal app exit and terminated; the entry takes effect on the next launch. Live verification after relaunch also passed in official ZCode 3.16.3: the 0.4.0 component displayed all three cards with correct positioning and spacing, and the recovery helper had exited. Future versions still require compatibility checks.
 
 The macOS 124-test Python suite also passed, with one Windows-native-API skip.
+
+On **2026-11-13**, official ZCode 3.18.2 on macOS Apple Silicon relocated the native 16px bottom gutter from the dock content to the composer column; the 0.4.3 selector patch no longer matched and the row sat 16px above the window edge. Extension **0.4.4** identifies the gutter by measured geometry instead. After a normal restart, live verification passed: the row pinned 2px above the window bottom edge, and `health.json` recorded version 0.4.4 with data available.
 
 ZCode 3.14.4 predates `data-composer-layout`. Its verified legacy profile requires that exact version plus the scoped editor, surface, card and dock markers. Unknown legacy versions/layouts remain rejected; other versions still need the normal compatibility checks.
 
