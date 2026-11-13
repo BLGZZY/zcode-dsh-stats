@@ -44,6 +44,66 @@ async (page) => {
     return getComputedStyle(dock).paddingBottom==='2px' && Math.abs(dock.getBoundingClientRect().bottom-host.getBoundingClientRect().bottom-2)<1;
   }), 'footer sits 2px from dock bottom');
   await page.screenshot({path:'output/playwright/light.png'});
+  // Current clients moved the native 16px gutter from the dock content onto the composer column.
+  await page.evaluate(()=>{
+    const dockContent=document.querySelector('[data-v4-composer-dock-content]');
+    const column=document.createElement('div');
+    column.id='acceptance-column';
+    // Class names on purpose: the gutter must be found by geometry, not by selector guesses.
+    column.className='pb-4 min-h-0 flex-1 flex-col';
+    const dock=document.createElement('div');
+    dock.setAttribute('data-v4-composer-dock','true');
+    // An inset that carries its own padding but also real content under the dock is page
+    // spacing, not a gutter, and must keep its padding while the gutter collapses.
+    const decoy=document.createElement('div');
+    decoy.id='acceptance-decoy';
+    decoy.style.paddingBottom='10px';
+    const hint=document.createElement('div');
+    hint.style.height='6px';
+    dockContent.parentElement.insertBefore(column,dockContent);
+    column.appendChild(dock);
+    dock.appendChild(decoy);
+    decoy.appendChild(dockContent);
+    decoy.appendChild(hint);
+    dockContent.classList.remove('pb-4');
+    window.__dshStats.receive(window.demoPacket());
+  });
+  check(await page.evaluate(()=>{
+    const host=document.querySelector('[data-dsh-stats]');
+    const column=document.querySelector('#acceptance-column');
+    const decoy=document.querySelector('#acceptance-decoy');
+    const edge=column.getBoundingClientRect().bottom-host.getBoundingClientRect().bottom;
+    return getComputedStyle(column).paddingBottom==='2px'
+      && getComputedStyle(decoy).paddingBottom==='10px'
+      && Math.abs(edge-2)<1;
+  }), 'current client column gutter collapses to 2px, page spacing untouched, row 2px above gutter edge');
+  await page.evaluate(()=>{
+    document.querySelector('[data-session-id]').dataset.sessionId='draft';
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await page.waitForFunction(()=>!document.querySelector('[data-dsh-stats]'));
+  check(await page.evaluate(()=>getComputedStyle(document.querySelector('#acceptance-column')).paddingBottom==='16px'),'draft restores the column gutter');
+  await page.evaluate(()=>{
+    const column=document.querySelector('#acceptance-column');
+    const dockContent=column.querySelector('[data-v4-composer-dock-content]');
+    column.parentElement.insertBefore(dockContent,column);
+    column.remove();
+    dockContent.classList.add('pb-4');
+    document.querySelector('[data-session-id]').dataset.sessionId='demo';
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await page.getByRole('button',{name:'6 轮 58 步 · 204 tok/s'}).waitFor();
+  passed.push('current client column gutter');
+  // Alignment follows a resize within a frame, not on the next 500ms scan tick.
+  await page.setViewportSize({width:760,height:800});
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  check(await page.evaluate(()=>{
+    const dockContent=document.querySelector('[data-v4-composer-dock-content]');
+    const host=document.querySelector('[data-dsh-stats]');
+    return Math.abs(dockContent.getBoundingClientRect().bottom-host.getBoundingClientRect().bottom-2)<1;
+  }), 'row re-aligns within a frame of a resize');
+  await page.setViewportSize({width:1100,height:800});
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   await page.getByRole('button', {name:'6 轮 58 步 · 204 tok/s'}).click();
   const panel=page.getByRole('dialog', {name:'会话统计详情'});
   await panel.waitFor({state:'visible'});
@@ -175,7 +235,7 @@ async (page) => {
   await page.setViewportSize({width:1100,height:800});
   await page.locator('[data-dsh-stats] .activity').waitFor();
   passed.push('all three cards survive streaming and internal scroll','ancestor scroll and resize keep anchor','offscreen anchor dismisses card');
-  await setStats({modelSamples:57,toolSamples:73,ttftMs:222300,ttftSamples:57,speedSamples:57,tokenSamples:57,cacheSamples:57,cacheReadSamples:57,outputSamples:57,cacheWriteTokens:null,cacheWriteSamples:0,uncachedInputTokens:null,uncachedInputSamples:0,nonCacheReadInputTokens:874308,nonCacheReadInputSamples:57});
+  await setStats({modelSamples:57,toolSamples:73,ttftMs:222300,ttftSamples:57,speedSamples:3,tokenSamples:57,cacheSamples:57,cacheReadSamples:57,outputSamples:57,cacheWriteTokens:null,cacheWriteSamples:0,uncachedInputTokens:null,uncachedInputSamples:0,nonCacheReadInputTokens:874308,nonCacheReadInputSamples:57});
   await page.locator('[data-dsh-stats] .activity').click();
   await equalRows(panel,[['模型用时','8分 23秒*'],['工具调用用时','13分 20秒*'],['首 token 平均（TTFT）','3.9秒*'],['输出速度（TPS）','204 tok/s*']],'partial activity metrics carry stars');
   check((await panel.locator('.footnote').textContent()).includes('模型 57/58') && (await panel.locator('.footnote').textContent()).includes('工具 73/74'),'partial activity explains sample coverage');

@@ -1,8 +1,8 @@
 {
   "name": "zcode-dsh-stats",
-  "version": "0.4.2",
+  "version": "0.4.4",
   "target": "Official ZCode desktop; additive app.asar entry loader, no source build",
-  "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the desktop dock's original 16px bottom padding to 2px; restore native spacing when removed. Includes turns, completed requests, recent-window weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
+  "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the client's original 16px bottom gutter to 2px wherever that gutter lives — identified by measured geometry (an ancestor whose only content below the dock is its own bottom padding), not by class signatures; restore native spacing when removed. Includes turns, completed requests, recent-window weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
   "source": "Read-only SQLite model_usage; completed main_turn requests in retained local records (normally 30 days); exact pane session ID and native context.",
   "speed": "sum(output_tokens) / sum(completed_at - first_token_at) over the most recent completed requests (window of 5; shorter sessions use what exists); completed requests, not streaming instantaneous rate; the numerator, decodeMs and speedSamples always cover the same window, and speedWindow caps the coverage target",
   "unknown": "Normalize legacy inclusive/exclusive cached input using official totals; missing persisted zero requires raw numeric evidence; partial samples are marked.",

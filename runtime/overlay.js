@@ -5,8 +5,12 @@
   const roots = new Map();
   // Only compact the native 16px dock gutter while our row is actually mounted.
   // A scoped rule preserves React's styles and restores native spacing on cleanup/drafts.
+  // 0.4.3: current clients moved that gutter off the dock content and onto the composer
+  // column, so this rule alone no longer matched and the row sat 16px above the window edge.
+  // 0.4.4: current clients are handled by measured geometry below instead of a guessed class
+  // signature, which no test could pin down and which hit every matching ancestor at once.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.4.2';
+  dockStyle.dataset.dshStatsLayout = '0.4.4';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
   let packet = { sessions: {}, at: 0 }, dead = false, positionFrame = null;
@@ -52,6 +56,72 @@
     }
     return true;
   }
+  /* The native bottom gutter under the composer is not in a fixed place: older clients keep it
+   * on the dock content, current ones on the composer column that wraps the dock. Identify it
+   * by geometry instead of class names: an ancestor counts as the gutter only when, between the
+   * dock's bottom edge and its own bottom edge, nothing but its own bottom padding remains —
+   * so genuine page spacing (captions, status strips below the dock) never gets compacted.
+   * Every qualifying ancestor is clamped, and the original inline value is restored as soon as
+   * the row goes away. */
+  const GUTTER_PX = 2;
+  const pads = new Map();
+  const shifts = new Map();
+  function gutterTargets(host, anchor) {
+    const dock = host.closest('[data-v4-composer-dock]');
+    const floor = dock
+      ? dock.getBoundingClientRect().bottom
+      : anchor.getBoundingClientRect().bottom + host.offsetHeight + (parseFloat(getComputedStyle(host).marginTop) || 0);
+    const targets = new Set();
+    for (let el = anchor.parentElement; el; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      // A scroller keeps its own bottom padding to keep content clear of the dock.
+      if (cs.overflowY === 'auto' || cs.overflowY === 'scroll') continue;
+      const pad = parseFloat(cs.paddingBottom) || 0;
+      if (pad <= GUTTER_PX && !pads.has(el)) continue;
+      // A clamped element reads back 2px, so measure against what it reports now; if real
+      // content appears under the dock the distance outgrows it and the clamp falls away.
+      if (Math.abs(el.getBoundingClientRect().bottom - floor - pad) <= 2) targets.add(el);
+    }
+    return targets;
+  }
+  function clampGutter(host, anchor) {
+    const targets = gutterTargets(host, anchor);
+    for (const el of [...pads.keys()]) if (!targets.has(el)) restorePad(el);
+    for (const el of targets) {
+      if (!pads.has(el)) pads.set(el, el.style.paddingBottom);
+      if (el.style.paddingBottom !== GUTTER_PX + 'px') el.style.paddingBottom = GUTTER_PX + 'px';
+    }
+    return targets;
+  }
+  function restorePad(el) {
+    const original = pads.get(el);
+    pads.delete(el);
+    el.style.paddingBottom = original || '';
+  }
+  function releaseGutter(host) {
+    const others = [...roots.values()].filter(s => s.host !== host);
+    for (const el of [...pads.keys()]) {
+      if (!el.contains(host)) continue;
+      if (others.some(s => el.contains(s.host))) continue;  // Another pane still needs it.
+      restorePad(el);
+    }
+    shifts.delete(host);
+    host.style.transform = '';
+  }
+  /* The row is nudged to 2px above the outermost compacted gutter's own bottom edge — measured,
+   * not assumed, so rounding, borders and leftover chrome cannot accumulate. When no gutter was
+   * found the row keeps its flow position: a visible native gap is honest, a detached row is
+   * not. A split pane keeps its own dock, so each pane stays 2px above its own bottom edge. */
+  function alignToBottom(host, targets) {
+    const edge = [...targets].at(-1);
+    if (!edge) return;
+    const gap = edge.getBoundingClientRect().bottom - host.getBoundingClientRect().bottom;
+    const applied = shifts.get(host) || 0;
+    const next = applied + Math.round(gap - GUTTER_PX);
+    if (next === applied) return;
+    shifts.set(host, next);
+    host.style.transform = next ? `translateY(${next}px)` : '';
+  }
   function nativeUsage(pane) {
     const node = pane.querySelector('[data-usage-used][data-usage-max]');
     if (node && node.dataset.usageUsed !== '' && node.dataset.usageMax !== '') {
@@ -69,7 +139,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.4.2';
+    host.dataset.dshStats = '0.4.4';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>
@@ -219,24 +289,30 @@
       seen.add(form);
       let s = roots.get(form);
       if (s && (s.sid !== sid || s.layout !== layout || s.anchor !== anchor || s.pane !== pane || !s.host.isConnected)) {
-        s.close();s.host.remove();roots.delete(form);s = null;
+        s.close();releaseGutter(s.host);s.host.remove();roots.delete(form);s = null;
       }
       if (!s) { s = create(form, layout, anchor, pane, sid);roots.set(form, s); }
       if (anchor.nextElementSibling !== s.host) anchor.after(s.host);
       paint(s);
+      alignToBottom(s.host, clampGutter(s.host, anchor));
     }
-    for (const [form, s] of roots) if (!seen.has(form)) { s.close();s.host.remove();roots.delete(form); }
+    for (const [form, s] of roots) if (!seen.has(form)) { s.close();releaseGutter(s.host);s.host.remove();roots.delete(form); }
   }
   const outside = e => { for (const s of roots.values()) if (!e.composedPath().includes(s.host)) s.close(); };
   const closeAll = () => { for (const s of roots.values()) s.close(); };
   // Streaming answers auto-scroll their timeline. Keep cards readable during that
-  // scroll, and follow the trigger if a scrolling ancestor actually moves it.
+  // scroll, follow the trigger if a scrolling ancestor actually moves it, and keep the
+  // row itself pinned to the bottom edge — resize and reflow must not leave it drifting
+  // until the next scan tick.
   const schedulePosition = () => {
     if (dead || positionFrame !== null) return;
     positionFrame = requestAnimationFrame(() => {
       positionFrame = null;
       if (dead) return;
-      for (const s of roots.values()) if (!s.shadow.querySelector('.details').hidden) s.position();
+      for (const s of roots.values()) {
+        alignToBottom(s.host, clampGutter(s.host, s.anchor));
+        if (!s.shadow.querySelector('.details').hidden) s.position();
+      }
     });
   };
   document.addEventListener('pointerdown', outside, true);
@@ -246,7 +322,7 @@
   window.__dshStats = {
     wanted: () => [...new Set([...roots.values()].map(s => s.sid))],
     receive: data => { packet = data;scan(); },
-    dispose: () => { dead = true;clearInterval(timer);if (positionFrame !== null) cancelAnimationFrame(positionFrame);closeAll();for (const s of roots.values()) s.host.remove();roots.clear();dockStyle.remove();document.removeEventListener('pointerdown', outside, true);window.removeEventListener('scroll', schedulePosition, true);window.removeEventListener('resize', schedulePosition); }
+    dispose: () => { dead = true;clearInterval(timer);if (positionFrame !== null) cancelAnimationFrame(positionFrame);closeAll();for (const s of roots.values()) { releaseGutter(s.host);s.host.remove(); }roots.clear();for (const el of [...pads.keys()]) restorePad(el);dockStyle.remove();document.removeEventListener('pointerdown', outside, true);window.removeEventListener('scroll', schedulePosition, true);window.removeEventListener('resize', schedulePosition); }
   };
   scan();
 })();

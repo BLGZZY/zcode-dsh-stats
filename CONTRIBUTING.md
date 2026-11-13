@@ -39,6 +39,18 @@ playwright-cli close
 
 `preview.html` and `docs/showcase.html` use labeled demo values. Browser screenshots and logs belong in ignored `output/`. Browser acceptance checks positioning, bottom spacing, narrow panes, themes, details, session isolation and cleanup. A preview passing does not substitute for validation in the official app.
 
+## Layout compatibility lessons
+
+Each stable client may relocate the composer's native bottom gutter (3.18.2 moved it from the dock content onto the composer column; 0.4.3 tried to chase it with selectors and failed). Handle it with measured geometry, not signatures:
+
+- Identify the gutter by geometry: an ancestor qualifies only when its own bottom padding is all that lies between the dock's bottom edge and its own bottom edge. Page spacing below the dock (captions, status strips) fails that test on its own.
+- Never write `!important` rules against utility-class signatures such as `min-h-0 flex-1 flex-col`. Those combinations recur throughout the app, the rule hits every matching ancestor at once, and no fixture can prove which ancestors a real client actually has.
+- Align the row to the identified gutter's own measured bottom edge, never to a proxy such as the dock edge. A proxy reports success while the real gap persists, and a loose assertion (`gap <= 4px`) passes on that masked failure too. Assert the actual invariant with a tight tolerance.
+- When no gutter can be identified, keep the row's flow position and leave the native gap. An honest 16px gap is a bug report; a translated row detached from the card hides the bug.
+- Layout-following adjustments must run on scroll and resize within a frame. Recomputing only on the next scan tick lets resize drift become visible.
+- Keep fixture DOMs adversarial: give simulated containers the classes the code must not depend on, and add decoy ancestors that carry their own padding plus real content under the dock and must keep it. A fixture built to match the implementation's assumptions proves nothing — 0.4.3's fixture never exercised its own CSS rule.
+- After bumping versions, finish with `python3 setup_auto.py enable`. `install.py install` alone leaves the auto-restore plugin copy at the old version, and the next official upgrade then restores stale code.
+
 ## Windows acceptance evidence
 
 For every additional Windows target, record the Windows version/architecture, official ZCode version, Python executable/version, discovered archive path and source commit. Exercise installation, status, per-session statistics, a normal restart, automatic repair after a representative update, and opt-out/removal. Confirm paths containing spaces and multiple discovered installations behave correctly. Preserve current backups and never replace the user's app with a synthetic fixture. Record UI verification separately from installer success; redact local paths and session content in public evidence.
