@@ -10,7 +10,7 @@
   // 0.4.4: current clients are handled by measured geometry below instead of a guessed class
   // signature, which no test could pin down and which hit every matching ancestor at once.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.4.4';
+  dockStyle.dataset.dshStatsLayout = '0.4.5';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
   let packet = { sessions: {}, at: 0 }, dead = false, positionFrame = null;
@@ -46,8 +46,13 @@
     const seconds = Math.floor(ms / 1000), minutes = Math.floor(seconds / 60);
     return minutes < 60 ? `${minutes}分 ${seconds % 60}秒` : `${Math.floor(minutes / 60)}小时 ${minutes % 60}分`;
   };
+  /* Painted on screen, and part of the conversation rather than a dialog. aria-hidden and
+   * inert are deliberately not consulted: they describe assistive tech and interaction, not
+   * pixels. Client 4.0.0 opens its model picker as a modal layer that marks the whole app
+   * aria-hidden while the composer stays on screen; reading that as hidden unmounted the row,
+   * restored the 16px gutter and jumped the composer on every open and close. */
   function visible(el) {
-    if (el.closest('[inert],[aria-hidden="true"],[role="dialog"]')) return false;
+    if (el.closest('[role="dialog"]')) return false;
     const r = el.getBoundingClientRect();
     if (r.width < 80 || r.height < 8 || r.bottom < 0 || r.top > innerHeight) return false;
     for (let p = el; p; p = p.parentElement) {
@@ -139,7 +144,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.4.4';
+    host.dataset.dshStats = '0.4.5';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>

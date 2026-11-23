@@ -1,8 +1,8 @@
 {
   "name": "zcode-dsh-stats",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "target": "Official ZCode desktop; additive app.asar entry loader, no source build",
-  "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the client's original 16px bottom gutter to 2px wherever that gutter lives — identified by measured geometry (an ancestor whose only content below the dock is its own bottom padding), not by class signatures; restore native spacing when removed. Includes turns, completed requests, recent-window weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
+  "ui": "Single centered 24px statistics row immediately outside and below the composer card, with a 3px top gap; never grows the input card or wraps. While the row is present, reduce the client's original 16px bottom gutter to 2px wherever that gutter lives — identified by measured geometry (an ancestor whose only content below the dock is its own bottom padding), not by class signatures; restore native spacing when removed. The row is mounted wherever the composer is painted; aria-hidden and inert (modal layers, non-interactive surfaces) never unmount it. Includes turns, completed requests, recent-window weighted decode tok/s, cumulative tokens, cache hit, native context percentage; narrow panes hide secondary counts/cache.",
   "source": "Read-only SQLite model_usage; completed main_turn requests in retained local records (normally 30 days); exact pane session ID and native context.",
   "speed": "sum(output_tokens) / sum(completed_at - first_token_at) over the most recent completed requests (window of 5; shorter sessions use what exists); completed requests, not streaming instantaneous rate; the numerator, decodeMs and speedSamples always cover the same window, and speedWindow caps the coverage target",
   "unknown": "Normalize legacy inclusive/exclusive cached input using official totals; missing persisted zero requires raw numeric evidence; partial samples are marked.",
@@ -14,6 +14,7 @@
     "session switching",
     "split panes",
     "draft no history",
+    "modal layer keeps the row mounted, aligned and painting",
     "light/dark",
     "narrow window",
     "keyboard detail dialog",
@@ -43,6 +44,6 @@
   "platforms": {
     "macOS": "Official ZCode.app; POSIX locks; Electron Framework fuse inspection; bundled MacOS/ZCode CLI. Existing support retained.",
     "Windows": "Official ZCode.exe/resources/app.asar; native msvcrt byte locks; EXE fuse inspection; bundled ZCode.exe CLI. UTF-8 JSON/process-hook output, explicit --asar and persistent Python paths. No elevation or forced process termination.",
-    "validation": "Windows 11 x64 / official ZCode 3.14.4 and 3.16.3: PowerShell installation, native session data, and all three live cards verified. On 2026-10-25, a real official stable-channel upgrade from 3.14.4 to 3.16.3 replaced the loader; native SessionStart queued automatic recovery, normal exit allowed the worker to restore it, and all three cards passed after restart without manual setup or restore commands. macOS 3.16.3 compatibility retained. On 2026-11-13, official ZCode 3.18.2 (macOS Apple Silicon) moved the bottom gutter onto the composer column; 0.4.4 identifies it by measured geometry and passed live verification after a normal restart (health.json reports 0.4.4 with data available). Future upgrades are not assumed compatible."
+    "validation": "Windows 11 x64 / official ZCode 3.14.4 and 3.16.3: PowerShell installation, native session data, and all three live cards verified. On 2026-10-25, a real official stable-channel upgrade from 3.14.4 to 3.16.3 replaced the loader; native SessionStart queued automatic recovery, normal exit allowed the worker to restore it, and all three cards passed after restart without manual setup or restore commands. macOS 3.16.3 compatibility retained. On 2026-11-13, official ZCode 3.18.2 (macOS Apple Silicon) moved the bottom gutter onto the composer column; 0.4.4 identifies it by measured geometry and passed live verification after a normal restart (health.json reports 0.4.4 with data available). On 2026-11-23, official ZCode 4.0.0 (macOS Apple Silicon) opened its model picker as a modal layer that marks the app aria-hidden; 0.4.4 removed the row while it was open. 0.4.5 decides visibility by painted geometry and reproduces the fix in the acceptance fixture; after a normal restart it loaded in official ZCode 4.0.0 (health.json reports 0.4.5 with data available), with the model switch itself not yet confirmed live. Future upgrades are not assumed compatible."
   }
 }

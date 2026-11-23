@@ -77,6 +77,72 @@ async (page) => {
       && getComputedStyle(decoy).paddingBottom==='10px'
       && Math.abs(edge-2)<1;
   }), 'current client column gutter collapses to 2px, page spacing untouched, row 2px above gutter edge');
+  // Client 4.0.0 opens its model picker as a modal layer. While it is open the library
+  // marks every sibling subtree up to <body> aria-hidden and blanks body pointer events,
+  // yet the composer stays painted. The row is passive, so none of that may unmount it:
+  // unmounting also restored the 16px gutter, which jumped the composer on open and again on close.
+  const sameRow = () => page.evaluate(()=>{
+    const host=document.querySelector('[data-dsh-stats]'), before=window.acceptanceRow;
+    if(!host) return 'unmounted';
+    if(host!==before.el) return 'remounted';
+    const r=host.getBoundingClientRect();
+    return ['top','bottom','left','height'].every(k=>Math.abs(r[k]-before[k])<0.5)&&getComputedStyle(document.querySelector('#acceptance-column')).paddingBottom==='2px'?'':'moved';
+  });
+  const keeps = async label => { const why = await sameRow();check(why==='', label+(why?' ('+why+')':'')); };
+  await page.evaluate(()=>{
+    const r=document.querySelector('[data-dsh-stats]').getBoundingClientRect();
+    window.acceptanceRow={el:document.querySelector('[data-dsh-stats]'),top:r.top,bottom:r.bottom,left:r.left,height:r.height};
+  });
+  await page.evaluate(()=>{
+    // Exactly what the client's modal layer does on open: the panel is portaled to <body>.
+    const menu=document.createElement('div');menu.id='acceptance-model-menu';menu.setAttribute('role','dialog');
+    menu.style.cssText='position:fixed;left:40px;top:40px;width:160px;height:80px;background:#fff;border:1px solid #000;z-index:99;pointer-events:auto';
+    document.body.append(menu);
+    for(const node of document.body.children) if(node!==menu){node.setAttribute('aria-hidden','true');node.setAttribute('data-aria-hidden','true');}
+    document.body.style.pointerEvents='none';
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await keeps('open modal model picker keeps the row');
+  await page.waitForTimeout(600);
+  await keeps('scan ticks while the model picker is open keep the row');
+  await setStats({tps:111.1});
+  check(await page.locator('[data-dsh-stats] .speed').textContent()==='111 tok/s','row keeps painting behind the open model picker');
+  await setStats({});
+  await page.evaluate(()=>{
+    // Exactly what the layer does on close.
+    for(const node of document.body.children){node.removeAttribute('aria-hidden');node.removeAttribute('data-aria-hidden');}
+    document.body.style.pointerEvents='';document.querySelector('#acceptance-model-menu').remove();
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await keeps('closing the model picker keeps the row');
+  // The client's own pattern for a painted but non-interactive surface is inert + aria-hidden.
+  await page.evaluate(()=>{
+    const pane=document.querySelector('main');pane.inert=true;pane.setAttribute('aria-hidden','true');
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await keeps('inert painted pane keeps the row');
+  await page.evaluate(()=>{
+    const pane=document.querySelector('main');pane.inert=false;pane.removeAttribute('aria-hidden');
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await keeps('pane becoming interactive again keeps the row');
+  // A genuinely hidden composer still releases the row and the gutter: 4.0.0 hides its
+  // composer region with aria-hidden *and* display:none.
+  await page.evaluate(()=>{
+    const column=document.querySelector('#acceptance-column');
+    column.style.display='none';column.setAttribute('aria-hidden','true');
+    window.__dshStats.receive(window.demoPacket());
+  });
+  await page.waitForFunction(()=>!document.querySelector('[data-dsh-stats]'));
+  check(await page.evaluate(()=>getComputedStyle(document.querySelector('#acceptance-column')).paddingBottom==='16px'),'hidden composer releases the column gutter');
+  await page.evaluate(()=>{
+    const column=document.querySelector('#acceptance-column');
+    column.style.display='';column.removeAttribute('aria-hidden');
+    window.__dshStats.receive(window.demoPacket());delete window.acceptanceRow;
+  });
+  await page.getByRole('button', {name:'6 轮 58 步 · 204 tok/s'}).waitFor();
+  check(await page.evaluate(()=>getComputedStyle(document.querySelector('#acceptance-column')).paddingBottom==='2px'),'shown composer reclaims the column gutter');
+  passed.push('modal model picker keeps the row');
   await page.evaluate(()=>{
     document.querySelector('[data-session-id]').dataset.sessionId='draft';
     window.__dshStats.receive(window.demoPacket());

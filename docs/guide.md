@@ -107,6 +107,8 @@ Since **0.4.1**, detail cards stay open while a streaming answer auto-scrolls th
 
 Since **0.4.4**, the native 16px bottom gutter is identified by measured geometry — an ancestor counts only when its own bottom padding is all that remains between the composer dock's bottom edge and its own — instead of fixed class names. Client updates that relocate the gutter (ZCode 3.18.2 moved it from the dock content to the composer column) no longer leave the row above a 16px gap, and the row re-aligns within a frame of scrolling or resizing. If no gutter can be identified, the row keeps its position with the native spacing. Update the extension and fully quit/reopen ZCode to load the fix.
 
+Since **0.4.5**, the row is kept as long as the composer is painted on screen. ZCode 4.0.0 opens its model picker as a modal layer that marks the rest of the app `aria-hidden` while the menu is open; earlier versions read that as a hidden composer, removed the row and restored the 16px gutter until the menu closed, so the composer jumped on open and again on close. `aria-hidden` and `inert` no longer count as hidden — they describe assistive technology and interaction, not pixels — while composers that are actually hidden, such as by `display: none`, still release the row and the gutter. Update the extension and fully quit/reopen ZCode to load the fix.
+
 ## Troubleshooting
 
 - **Python error:** check `python3 --version` (macOS) or `py -3 --version` (Windows); Python 3.11+ is required. No pip packages are needed.
@@ -117,6 +119,7 @@ Since **0.4.4**, the native 16px bottom gutter is identified by measured geometr
 - **Installed but invisible:** wait for active tasks, fully quit/reopen ZCode, and enter an existing local session. Check `install.py check` and `health.json`. Drafts and inline editors hide the row.
 - **Update still missing the row:** start/resume a session and inspect `auto-status.json`. On Windows, `deferred-until-exit` means the helper is waiting for a normal app exit; inspect `worker-status.json`, finish your tasks and exit normally, then reopen after repair. An expired helper can be queued again by the next session start/resume.
 - **16px gap under the row after an official update:** the client moved its native bottom gutter. Update to 0.4.4+, which identifies the gutter by measured geometry, then fully quit/reopen ZCode. If the gap persists on a newer client, report the exact client version; the layout needs a measured profile, not a selector patch.
+- **Row flickers or vanishes while a menu or dialog is open:** versions before 0.4.5 removed the row whenever the client marked the app `aria-hidden` behind a modal layer, as ZCode 4.0.0 does for its model picker. Update to 0.4.5+, then fully quit/reopen ZCode.
 - **Busy operation:** wait for the existing operation to finish, then retry; do not delete its locks while it runs.
 
 Archive backups stay in `~/.zcode-dsh-stats/backups/`. Normal removal edits only this extension's marked entry, preserving newer app contents. Avoid restoring old archives over a newer official version.
