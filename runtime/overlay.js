@@ -10,7 +10,7 @@
   // 0.4.4: current clients are handled by measured geometry below instead of a guessed class
   // signature, which no test could pin down and which hit every matching ancestor at once.
   const dockStyle = document.createElement('style');
-  dockStyle.dataset.dshStatsLayout = '0.4.5';
+  dockStyle.dataset.dshStatsLayout = '0.4.6';
   dockStyle.textContent = '[data-v4-composer-dock-content].pb-4:has([data-dsh-stats]){padding-bottom:2px!important}';
   document.head.appendChild(dockStyle);
   let packet = { sessions: {}, at: 0 }, dead = false, positionFrame = null;
@@ -144,7 +144,7 @@
   }
   function create(form, layout, anchor, pane, sid) {
     const host = document.createElement('div');
-    host.dataset.dshStats = '0.4.5';
+    host.dataset.dshStats = '0.4.6';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${css}</style><div class="row" role="group" aria-label="会话用量统计">
       <button type="button" class="activity" aria-haspopup="dialog" aria-expanded="false">${icon('activity')}<span class="counts extra"></span><span class="muted extra">·</span><span class="speed"></span></button>
@@ -193,7 +193,7 @@
         line('模型用时', metric(d?.modelMs, d?.modelSamples, d?.steps, duration, '模型'), '客户端记录的已完成主请求总耗时，含首 token 等待及准备、重试、收尾开销，并非纯服务端推理时间。');
         line('工具调用用时', metric(d?.toolMs, d?.toolSamples, d?.toolCalls, duration, '工具'), '与主回合关联的工具调用从调度到终态的耗时之和，含排队、审批等待及失败/取消；并行调用会累加。');
         line('首 token 平均（TTFT）', metric(finite(d?.ttftMs) && d?.ttftSamples > 0 ? d.ttftMs / d.ttftSamples : null, d?.ttftSamples, d?.steps, duration, '首 token'), '有效首 token 等待时间的算术平均。');
-        line('输出速度（TPS）', metric(d?.tps, d?.speedSamples, speedTotal, speed, '速度'), '最近完成请求（窗口最多 5 条）的输出 token 总和 ÷ 解码耗时总和，反映当前节奏而非全程平均。');
+        line('输出速度（TPS）', metric(d?.tps, d?.speedSamples, speedTotal, speed, '速度'), '当前模型最近最多 5 条可测速完成请求（回溯最近 15 条同模型请求，剔除极短突发异常）的输出 token 总和 ÷ 解码耗时总和；切换模型后重新计算。');
       } else if (state.kind === 'usage') {
         const total = metric(d?.tokens, d?.tokenSamples, d?.steps, tok, '总量');
         headline.textContent = total.text;headline.title = total.hint;

@@ -241,6 +241,120 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(zero['ttftSamples'], 1)
         self.assertIsNone(zero['tps'])
 
+    def test_decode_speed_resets_window_when_model_or_provider_changes(self):
+        fast = [request(turn_id=f'fast-{i}', provider_id='prov-a', model_id='fast',
+                        started_at=1000 * i, first_token_at=1000 * i + 100,
+                        completed_at=1000 * i + 1100, output_tokens=200) for i in range(5)]
+        slow = [request(turn_id=f'slow-{i}', provider_id='prov-a', model_id='slow',
+                        started_at=10000 + 3000 * i, first_token_at=10000 + 3000 * i + 500,
+                        completed_at=10000 + 3000 * i + 2500, output_tokens=100) for i in range(2)]
+        stats = collector.summarize([*fast, *slow])
+        self.assertEqual(stats['steps'], 7)
+        self.assertEqual(stats['tokens'], 1900)
+        self.assertEqual(stats['modelMs'], 10500)
+        self.assertEqual(stats['ttftMs'], 1500)
+        self.assertEqual(stats['tps'], 50)
+        self.assertEqual(stats['speedSamples'], 2)
+        self.assertEqual(stats['speedWindow'], 2)
+        self.assertEqual(stats['decodeMs'], 4000)
+
+        # Switching only provider_id also resets the window.
+        other_prov = [request(turn_id='other-prov', provider_id='prov-b', model_id='slow',
+                              started_at=20000, first_token_at=20500, completed_at=21500, output_tokens=80)]
+        stats_prov = collector.summarize([*fast, *slow, *other_prov])
+        self.assertEqual(stats_prov['tps'], 80)
+        self.assertEqual(stats_prov['speedSamples'], 1)
+        self.assertEqual(stats_prov['speedWindow'], 1)
+
+        # Switching A -> B -> A uses only the contiguous trailing A segment.
+        back_to_fast = [request(turn_id='fast-back', provider_id='prov-a', model_id='fast',
+                                started_at=30000, first_token_at=30100, completed_at=31100, output_tokens=150)]
+        stats_back = collector.summarize([*fast, *slow, *back_to_fast])
+        self.assertEqual(stats_back['tps'], 150)
+        self.assertEqual(stats_back['speedSamples'], 1)
+        self.assertEqual(stats_back['speedWindow'], 1)
+
+    def test_model_switch_followed_by_untimed_request_shows_unknown_not_previous_model(self):
+        old_model = [request(turn_id=f'old-{i}', provider_id='prov-a', model_id='fast',
+                             output_tokens=200) for i in range(5)]
+        untimed_new = request(turn_id='new-0', provider_id='prov-a', model_id='slow',
+                              first_token_at=None, output_tokens=100)
+        stats = collector.summarize([*old_model, untimed_new])
+        self.assertIsNone(stats['tps'])
+        self.assertEqual(stats['speedSamples'], 0)
+        self.assertEqual(stats['speedWindow'], 1)
+        self.assertEqual(stats['decodeMs'], 0)
+
+    def test_decode_speed_bridges_short_tool_only_gaps_and_expires_stale_history(self):
+        timed_fast = [request(turn_id=f't-{i}', started_at=1000 * i, first_token_at=1000 * i + 100,
+                              completed_at=1000 * i + 1100, output_tokens=100) for i in range(2)]
+        timed_slow = [request(turn_id=f's-{i}', started_at=5000 + 2000 * i, first_token_at=5000 + 2000 * i + 100,
+                              completed_at=5000 + 2000 * i + 1100, output_tokens=40) for i in range(3)]
+        valid5 = [*timed_fast, *timed_slow]  # 5 valid: 320 tok / 5000 ms = 64 tok/s
+        untimed = lambda n: [request(turn_id=f'u-{i}', first_token_at=None, output_tokens=50) for i in range(n)]
+
+        # 5 valid + 3 untimed (8 <= 15): bridges brief tool gap and keeps all 5.
+        bridged = collector.summarize([*valid5, *untimed(3)])
+        self.assertEqual(bridged['tps'], 64)
+        self.assertEqual(bridged['speedSamples'], 5)
+        self.assertEqual(bridged['speedWindow'], 5)
+
+        # 5 valid + 12 untimed (17): last 15 rows hold only the 3 slow valid rows (120 tok / 3000 ms = 40).
+        partial = collector.summarize([*valid5, *untimed(12)])
+        self.assertEqual(partial['tps'], 40)
+        self.assertEqual(partial['speedSamples'], 3)
+        self.assertEqual(partial['speedWindow'], 5)
+
+        # 5 valid + 15 untimed (20): last 15 rows contain zero timed samples -> unknown.
+        expired = collector.summarize([*valid5, *untimed(15)])
+        self.assertIsNone(expired['tps'])
+        self.assertEqual(expired['speedSamples'], 0)
+        self.assertEqual(expired['speedWindow'], 5)
+        self.assertEqual(expired['decodeMs'], 0)
+
+    def test_burst_outlier_filter_excludes_sub_500ms_spike_without_affecting_fast_models_or_long_recoveries(self):
+        normal = [request(turn_id=f'n-{i}', started_at=3000 * i, first_token_at=3000 * i + 100,
+                          completed_at=3000 * i + 2100, output_tokens=200) for i in range(4)]
+        burst = request(turn_id='burst', started_at=15000, first_token_at=15500,
+                        completed_at=15575, output_tokens=450)  # 75ms -> 6000 tok/s
+        stats = collector.summarize([*normal, burst])
+        self.assertEqual(stats['tps'], 100)
+        self.assertEqual(stats['speedSamples'], 4)
+        self.assertEqual(stats['speedWindow'], 5)
+        self.assertEqual(stats['decodeMs'], 8000)
+
+        # Ultra-fast hardware (~2000 tok/s across the window) must not be dropped.
+        ultra_fast = [request(turn_id=f'uf-{i}', started_at=1000 * i, first_token_at=1000 * i + 50,
+                              completed_at=1000 * i + 150, output_tokens=200) for i in range(5)]
+        fast_stats = collector.summarize(ultra_fast)
+        self.assertEqual(fast_stats['tps'], 2000)
+        self.assertEqual(fast_stats['speedSamples'], 5)
+        self.assertEqual(fast_stats['speedWindow'], 5)
+
+        # Legitimate long recovery (>= 500ms) >3x median is retained.
+        slow = [request(turn_id=f'sl-{i}', started_at=3000 * i, first_token_at=3000 * i + 100,
+                        completed_at=3000 * i + 2100, output_tokens=60) for i in range(4)]
+        long_fast = request(turn_id='lf', started_at=20000, first_token_at=20100,
+                            completed_at=30100, output_tokens=1200)  # 10s -> 120 tok/s (>3x 30 tok/s)
+        long_stats = collector.summarize([*slow, long_fast])
+        self.assertEqual(long_stats['speedSamples'], 5)
+        self.assertAlmostEqual(long_stats['tps'], 1440 * 1000 / 18000)
+
+        # Fewer than 3 timed samples never trigger burst filtering.
+        two_only = collector.summarize([normal[0], burst])
+        self.assertEqual(two_only['speedSamples'], 2)
+        self.assertAlmostEqual(two_only['tps'], 650 * 1000 / 2075)
+
+        # Zero median rate does not crash or drop samples.
+        zero_med = [
+            request(turn_id='z-0', started_at=0, first_token_at=100, completed_at=1100, output_tokens=0),
+            request(turn_id='z-1', started_at=2000, first_token_at=2100, completed_at=3100, output_tokens=0),
+            request(turn_id='z-2', started_at=4000, first_token_at=4100, completed_at=4300, output_tokens=10),
+        ]
+        zero_stats = collector.summarize(zero_med)
+        self.assertEqual(zero_stats['speedSamples'], 3)
+        self.assertAlmostEqual(zero_stats['tps'], 10 * 1000 / 2200)
+
 
 class ToolTimingTests(unittest.TestCase):
     def test_real_tool_intervals_sum_parallel_overlap_and_ignore_running_calls(self):
@@ -449,6 +563,46 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.OperationalError):
             collector.snapshot(missing, ['session-a'])
         self.assertFalse(missing.exists())
+
+    def test_snapshot_segments_speed_by_provider_and_model_with_deterministic_tie_breaking_and_numeric_output(self):
+        db = Path(self.directory.name) / 'schema_with_model.sqlite'
+        with closing(sqlite3.connect(db)) as con, con:
+            con.executescript('''
+                CREATE TABLE session (id TEXT PRIMARY KEY);
+                CREATE TABLE model_usage (
+                    id TEXT PRIMARY KEY, session_id TEXT, query_source TEXT,
+                    turn_id TEXT, status TEXT, started_at INTEGER,
+                    first_token_at INTEGER, completed_at INTEGER,
+                    input_tokens INTEGER, output_tokens INTEGER,
+                    cache_read_input_tokens INTEGER, cache_creation_input_tokens INTEGER,
+                    provider_total_tokens INTEGER, computed_total_tokens INTEGER,
+                    provider_id TEXT, model_id TEXT, raw_usage_json TEXT);
+                INSERT INTO session VALUES ('sess-1');
+            ''')
+            columns = [key for key in request() if not key.endswith('_known')]
+            cols_sql = 'id,session_id,query_source,provider_id,model_id,' + ','.join(columns)
+            placeholders = ','.join('?' for _ in range(5 + len(columns)))
+            sql = f'INSERT INTO model_usage ({cols_sql}) VALUES ({placeholders})'
+            # Insert a fast request and a slow request with identical started_at=5000;
+            # tie-breaking by completed_at, id puts r2 (slow) last -> active model is slow.
+            rows = [
+                ('r1', 'sess-1', 'main_turn', 'prov-a', 'fast-model',
+                 request(started_at=5000, first_token_at=5100, completed_at=6100, output_tokens=200)),
+                ('r2', 'sess-1', 'main_turn', 'prov-a', 'slow-model',
+                 request(started_at=5000, first_token_at=5200, completed_at=7200, output_tokens=60)),
+            ]
+            for rid, sid, src, prov, mod, row in rows:
+                con.execute(sql, (rid, sid, src, prov, mod, *(row[k] for k in columns)))
+        payload = collector.snapshot(db, ['sess-1'])['sess-1']
+        self.assertEqual(payload['tps'], 30)
+        self.assertEqual(payload['speedSamples'], 1)
+        self.assertEqual(payload['speedWindow'], 1)
+        self.assertEqual(payload['steps'], 2)
+        # Ensure provider_id / model_id strings never leak into the telemetry payload.
+        for key, value in payload.items():
+            self.assertFalse(isinstance(value, str), f'Unexpected string field {key}={value!r}')
+            self.assertNotIn('provider', key.lower())
+            self.assertNotIn('model_id', key.lower())
 
 
 if __name__ == '__main__':

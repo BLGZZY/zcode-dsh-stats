@@ -17,7 +17,45 @@ def known(row, field, flag):
     return number(value) and (value > 0 or bool(row[flag]))
 
 
-SPEED_WINDOW = 5  # Row speed tracks the most recent completed requests, not the whole retained session.
+SPEED_WINDOW = 5  # Target count of recent timed requests for the current model.
+SPEED_LOOKBACK = 15  # Max recent same-model requests scanned to collect SPEED_WINDOW timed samples.
+BURST_MAX_DECODE_MS = 500  # Sub-500ms decode spans can reflect buffered delivery or late first_token_at.
+BURST_RATE_MULTIPLIER = 3  # Only drop sub-500ms samples exceeding 3x the window's median rate.
+
+
+def column(row, name):
+    try:
+        return row[name]
+    except (KeyError, IndexError):
+        return None
+
+
+def model_key(row):
+    return tuple(val.strip() if isinstance(val, str) and val.strip() else None
+                 for val in (column(row, 'provider_id'), column(row, 'model_id')))
+
+
+def speed_sample(row):
+    if not known(row, 'output_tokens', 'output_known'):
+        return None
+    start, first, end, out = (row[k] for k in ('started_at', 'first_token_at', 'completed_at', 'output_tokens'))
+    if all(number(v) for v in (start, first, end, out)) and start <= first < end:
+        return (out, end - first)
+    return None
+
+
+def filter_burst_outliers(window):
+    if len(window) < 3:
+        return window
+    rates = [out * 1000 / dur for out, dur in window]
+    ordered = sorted(rates)
+    mid = len(ordered) // 2
+    median_rate = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    if median_rate <= 0:
+        return window
+    filtered = [pair for pair, rate in zip(window, rates)
+                if not (pair[1] < BURST_MAX_DECODE_MS and rate > BURST_RATE_MULTIPLIER * median_rate)]
+    return filtered or window
 
 
 def input_side(row):
@@ -49,7 +87,7 @@ def input_side(row):
 
 def summarize(rows):
     good = [r for r in rows if r['status'] == 'completed']
-    paired, totals, cache = [], [], []
+    totals, cache = [], []
     model_times, ttft_times = [], []
     inputs, outputs, cache_reads, cache_writes, uncached, non_cache_reads = [], [], [], [], [], []
     breakdown_samples = 0
@@ -77,15 +115,23 @@ def summarize(rows):
         if normalized_input is not None and read_known and read <= normalized_input:
             cache.append((normalized_input, read))
             non_cache_reads.append(normalized_input - read)
-        start, first, end, out = (r[k] for k in ('started_at', 'first_token_at', 'completed_at', 'output_tokens'))
+        start, first, end = (r[k] for k in ('started_at', 'first_token_at', 'completed_at'))
         if number(start) and number(end) and start <= end:
             model_times.append(end - start)
             if number(first) and start <= first <= end:
                 ttft_times.append(first - start)
-        if output_known and all(number(v) for v in (start, first, end, out)) and start <= first < end:
-            paired.append((out, end - first))
-    # Rows arrive ordered by started_at, so the tail of `paired` is the most recent history.
-    window = paired[-SPEED_WINDOW:]
+    # Rows arrive ordered by started_at (with completed_at, id tie-breakers when present).
+    speed_segment = []
+    if good:
+        active_model = model_key(good[-1])
+        for r in reversed(good):
+            if model_key(r) != active_model:
+                break
+            speed_segment.append(r)
+        speed_segment.reverse()
+    speed_recent = speed_segment[-SPEED_LOOKBACK:]
+    candidates = [sample for r in speed_recent if (sample := speed_sample(r)) is not None]
+    window = filter_burst_outliers(candidates[-SPEED_WINDOW:])
     duration = sum(p[1] for p in window)
     cache_input = sum(p[0] for p in cache)
     def total(values):
@@ -97,9 +143,9 @@ def summarize(rows):
         'tokenSamples': len(totals),
         'tps': sum(p[0] for p in window) * 1000 / duration if duration else None,
         'speedSamples': len(window),
-        # Coverage target for the windowed speed: the window caps at SPEED_WINDOW but
-        # also cannot exceed the session's completed requests.
-        'speedWindow': min(SPEED_WINDOW, len(good)),
+        # Coverage target for the windowed speed: capped at SPEED_WINDOW and at the
+        # scanned same-model requests in the current trailing segment.
+        'speedWindow': min(SPEED_WINDOW, len(speed_recent)),
         'decodeMs': duration,
         'cacheHit': sum(p[1] for p in cache) / cache_input if cache_input else None,
         'cacheSamples': len(cache),
@@ -149,6 +195,13 @@ def snapshot(db, sessions):
         con.row_factory = sqlite3.Row
         con.execute('PRAGMA query_only=ON')
         con.execute('BEGIN')
+        usage_columns = {r['name'] for r in con.execute('PRAGMA table_info(model_usage)')}
+        provider_expr = 'provider_id' if 'provider_id' in usage_columns else 'NULL AS provider_id'
+        model_expr = 'model_id' if 'model_id' in usage_columns else 'NULL AS model_id'
+        order_cols = ['started_at']
+        for col in ('completed_at', 'id'):
+            if col in usage_columns:
+                order_cols.append(col)
         tool_columns = {r['name'] for r in con.execute('PRAGMA table_info(tool_usage)')}
         has_tools = {'session_id', 'turn_id', 'status', 'started_at', 'completed_at'} <= tool_columns
         for sid in dict.fromkeys(sessions[:8]):
@@ -157,9 +210,10 @@ def snapshot(db, sessions):
             if not con.execute('SELECT 1 FROM session WHERE id=?', (sid,)).fetchone():
                 result[sid] = {'error': 'session-unavailable'}
                 continue
-            rows = con.execute('''SELECT turn_id,status,started_at,first_token_at,completed_at,
+            rows = con.execute(f'''SELECT turn_id,status,started_at,first_token_at,completed_at,
                 input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens,
                 provider_total_tokens,computed_total_tokens,
+                {provider_expr},{model_expr},
                 CASE WHEN json_valid(raw_usage_json) THEN
                     json_type(raw_usage_json,'$.inputTokens') IN ('integer','real')
                     AND json_extract(raw_usage_json,'$.inputTokens') >= 0 ELSE 0 END AS input_known,
@@ -173,7 +227,7 @@ def snapshot(db, sessions):
                     json_type(raw_usage_json,'$.cacheWriteTokens') IN ('integer','real')
                     AND json_extract(raw_usage_json,'$.cacheWriteTokens') >= 0 ELSE 0 END AS cache_write_known
                 FROM model_usage
-                WHERE session_id=? AND query_source='main_turn' ORDER BY started_at''', (sid,)).fetchall()
+                WHERE session_id=? AND query_source='main_turn' ORDER BY {','.join(order_cols)}''', (sid,)).fetchall()
             tools = None
             if has_tools:
                 # tool_usage has no query_source; restrict to this session's retained
